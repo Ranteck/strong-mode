@@ -34,6 +34,12 @@ node packages/create-zero-ts/dist/cli.js demo-app --yes --no-install
 node packages/create-zero-ts/dist/cli.js apply --dry-run --yes
 ```
 
+### Running a single test file
+```bash
+npx vitest run src/args.test.ts -w create-zero-ts
+npx vitest run src/apply/patchers.test.ts -w create-zero-ts
+```
+
 ### Generated project commands
 Projects created by zero-ts have these npm scripts:
 - `check`: Fast gate (typecheck + lint + format:check + dead-code)
@@ -52,23 +58,34 @@ Projects created by zero-ts have these npm scripts:
 - **`src/create-command.ts`**: Creates new project from scratch (copies template, initializes git, optionally installs)
 - **`src/apply-command.ts`**: Applies template to existing project (detects conflicts, patches package.json, creates backups)
 
+### Argument Parsing (`src/args.ts`)
+
+`parseCliArgs(argv)` returns a discriminated union (`CreateCliOptions | ApplyCliOptions`) based on `command` field. First token "apply" or "--apply" routes to apply parsing; everything else is the create command. Both parsers support `--flag value` and `--flag=value` formats and reject unknown flags.
+
 ### Template System
 
-**`src/template.ts`**: Core template operations
-- Copies files from bundled template directory
-- Renders package.json with project name via `__PROJECT_NAME__` placeholder
-- Validates npm package names
+**`src/template.ts`**: Core template operations. Files use `__PROJECT_NAME__` as a token placeholder, replaced with the actual project name during copy/detect. Template validation uses `sanitizePackageName()` and `assertValidPackageName()`.
 
-### Apply Command Architecture
+**9 managed template files** (defined in `src/apply/constants.ts`): tsconfig.json, eslint.config.mjs, prettier.config.mjs, vitest.config.ts, knip.config.ts, depcruise.config.cjs, lefthook.yml, .gitignore, src/env.ts.
+
+### Apply Command Pipeline
 
 The apply command (for existing projects) uses a detect → plan → execute pipeline:
 
-1. **`src/apply/detect.ts`**: Detects existing project state (package.json, managed files)
-2. **`src/apply/plan.ts`**: Builds an `ApplyPlan` (files to create, conflicts, package.json changes)
-3. **`src/apply/patchers.ts`**: Generates package.json merge plan (adds dependencies/scripts without removing existing ones)
-4. **`src/apply/execute.ts`**: Executes the plan (with dry-run, backup, force options)
+1. **`src/apply/detect.ts`**: Reads target project state — existing package.json, which managed files already exist, and their current content
+2. **`src/apply/plan.ts`**: Splits managed files into `filesToCreate` (new) and `conflictingFiles` (existing), builds package.json merge plan
+3. **`src/apply/patchers.ts`**: Generates package.json merge plan — adds template dependencies/scripts without removing existing ones. Special handling for `prepare` script (appends `lefthook install` if missing)
+4. **`src/apply/execute.ts`**: Executes the plan with dry-run, backup (`{file}.zero-ts-backup.{ISO-timestamp}`), and force options. Prompts for conflict resolution (overwrite/skip/diff preview)
 
-### Strict TypeScript Philosophy
+### Package Manager Detection (`src/package-manager.ts`)
+
+Detection order: lockfile presence (`package-lock.json` → npm, `pnpm-lock.yaml` → pnpm, `yarn.lock` → yarn, `bun.lockb` → bun) → `npm_config_user_agent` env var → defaults to npm.
+
+### Build Tooling
+
+**tsup** bundles `src/cli.ts` → `dist/cli.js` as ESM with `#!/usr/bin/env node` shebang, targeting Node 22. Published package includes `dist/` and `template/` directories with two bin entries: `create-zero-ts` and `zero-ts`.
+
+## Strict TypeScript Philosophy
 
 Generated projects enforce extreme type safety:
 
@@ -85,17 +102,18 @@ Generated projects enforce extreme type safety:
 
 ## Key Implementation Details
 
-- **Package manager detection**: `src/package-manager.ts` detects npm/pnpm/yarn/bun from lockfiles
-- **Interactive prompts**: Uses `@clack/prompts` with `exitOnCancel` wrapper
-- **CLI flags**: Support for `--yes`, `--dry-run`, `--force`, `--backup`, `--no-install`
+- **Cross-platform**: Uses `cross-spawn` for command execution with shell enabled on Windows
+- **Interactive prompts**: Uses `@clack/prompts` with `exitOnCancel` wrapper (`src/ui.ts`)
+- **CLI flags**: `--yes`, `--dry-run`, `--force`, `--backup`, `--no-install`, `--skip-git`, `--pm=<manager>`, `--cwd=<path>`, `--dir=<path>`
 - **Template sync**: MUST run `sync:template` before building to ensure CLI bundles latest scaffold
 - **Node requirement**: Requires Node.js >= 22
+- **ESLint config** (CLI project itself): enforces `explicit-function-return-type`, `no-floating-promises`, `consistent-type-imports`; relaxes return type requirement in test files
 
 ## Testing
 
-- Uses Vitest for all tests
-- Test files: `*.test.ts` in `packages/create-zero-ts/src/`
-- Key test suites: `args.test.ts`, `template.test.ts`, `apply/patchers.test.ts`, `apply/plan.test.ts`
+- Uses Vitest with globals mode (`describe`, `it`, `expect` available without imports)
+- Test files: `*.test.ts` colocated in `packages/create-zero-ts/src/`
+- Key test suites: `args.test.ts` (flag parsing), `template.test.ts` (name validation), `apply/patchers.test.ts` (package.json merge), `apply/plan.test.ts` (file splitting)
 
 ## Important Constraints
 
