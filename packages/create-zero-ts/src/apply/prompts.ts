@@ -9,7 +9,13 @@ export type ConflictResolution =
   | { readonly action: "skip" }
   | { readonly action: "merge"; readonly content: string };
 
-export const promptFileConflictResolution = async (
+export type ConflictResolver = (
+  relativePath: string,
+  existingContent: string,
+  incomingContent: string,
+) => Promise<ConflictResolution>;
+
+export const promptFileConflictResolution: ConflictResolver = async (
   relativePath: string,
   existingContent: string,
   incomingContent: string,

@@ -1,0 +1,115 @@
+name: Main Release Gates
+
+on:
+  pull_request:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+jobs:
+  quality:
+    name: Quality (Node 22)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Verify template sync
+        run: npm run verify:template-sync
+
+      - name: Run checks
+        run: npm run check
+
+      - name: Build CLI
+        run: npm run build
+
+  e2e-matrix:
+    name: E2E Node ${{ matrix.node }} + ${{ matrix.pm }}
+    runs-on: ubuntu-latest
+    needs: quality
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [22, 24]
+        pm: [npm, pnpm, yarn, bun]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node }}
+          cache: npm
+
+      - name: Enable Corepack
+        if: matrix.pm == 'pnpm' || matrix.pm == 'yarn'
+        run: corepack enable
+
+      - name: Setup Bun
+        if: matrix.pm == 'bun'
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build CLI
+        run: npm run build
+
+      - name: Smoke create/apply with matrix package manager
+        run: |
+          set -euo pipefail
+          tmp_dir="$(mktemp -d)"
+          project_dir="$tmp_dir/app-${{ matrix.node }}-${{ matrix.pm }}"
+          node packages/create-zero-ts/dist/cli.js "$project_dir" --yes --skip-git --pm "${{ matrix.pm }}" --install
+          (
+            cd "$project_dir"
+            ${{ matrix.pm }} run check
+          )
+          node packages/create-zero-ts/dist/cli.js apply --cwd "$project_dir" --dry-run --yes --pm "${{ matrix.pm }}" --no-install --no-check
+
+  publish-dry-run:
+    name: Publish Dry Run
+    runs-on: ubuntu-latest
+    needs: quality
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Verify template sync
+        run: npm run verify:template-sync
+
+      - name: Build CLI
+        run: npm run build
+
+      - name: Verify package contents
+        run: npm run verify:pack
+
+      - name: Smoke tarball install
+        run: npm run smoke:tarball
+
+      - name: npm publish dry-run
+        working-directory: packages/create-zero-ts
+        run: npm publish --dry-run

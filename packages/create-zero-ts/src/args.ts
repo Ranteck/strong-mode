@@ -3,6 +3,7 @@ import {
   type ApplyCliOptions,
   type CliOptions,
   type CreateCliOptions,
+  type DoctorCliOptions,
   type PackageManager,
 } from "./types.js";
 
@@ -223,6 +224,59 @@ const parseApplyOptions = (argv: readonly string[]): ApplyCliOptions => {
   };
 };
 
+interface MutableDoctorOptions {
+  cwd: string | undefined;
+  packageManager: PackageManager | undefined;
+}
+
+const parseDoctorOptions = (argv: readonly string[]): DoctorCliOptions => {
+  const options: MutableDoctorOptions = {
+    cwd: undefined,
+    packageManager: undefined,
+  };
+
+  for (let index = 0; index < argv.length; index += 1) {
+    const token = argv[index];
+    if (token === undefined) {
+      continue;
+    }
+
+    if (!token.startsWith("-")) {
+      throw new Error(`Unknown positional argument for doctor: ${token}`);
+    }
+
+    if (token.startsWith("--pm=")) {
+      options.packageManager = parsePackageManager(token.split("=")[1] ?? "");
+      continue;
+    }
+
+    if (token === "--pm") {
+      options.packageManager = parsePackageManager(argv[index + 1] ?? "");
+      index += 1;
+      continue;
+    }
+
+    if (token.startsWith("--cwd=")) {
+      options.cwd = token.split("=")[1];
+      continue;
+    }
+
+    if (token === "--cwd") {
+      options.cwd = argv[index + 1];
+      index += 1;
+      continue;
+    }
+
+    throw new Error(`Unknown argument: ${token}`);
+  }
+
+  return {
+    command: "doctor",
+    cwd: options.cwd,
+    packageManager: options.packageManager,
+  };
+};
+
 export const parseCliArgs = (argv: readonly string[]): CliOptions => {
   const [first, ...rest] = argv;
   if (first === "apply") {
@@ -231,6 +285,14 @@ export const parseCliArgs = (argv: readonly string[]): CliOptions => {
 
   if (first === "--apply") {
     return parseApplyOptions(rest);
+  }
+
+  if (first === "doctor") {
+    return parseDoctorOptions(rest);
+  }
+
+  if (first === "--doctor") {
+    return parseDoctorOptions(rest);
   }
 
   return parseCreateOptions(argv);

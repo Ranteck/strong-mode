@@ -2,7 +2,7 @@ export const PACKAGE_MANAGERS = ["npm", "pnpm", "yarn", "bun"] as const;
 
 export type PackageManager = (typeof PACKAGE_MANAGERS)[number];
 
-export type CliCommand = "create" | "apply";
+export type CliCommand = "create" | "apply" | "doctor";
 
 interface BaseCliOptions {
   readonly command: CliCommand;
@@ -28,4 +28,10 @@ export interface ApplyCliOptions extends BaseCliOptions {
   readonly force: boolean;
 }
 
-export type CliOptions = CreateCliOptions | ApplyCliOptions;
+export interface DoctorCliOptions {
+  readonly command: "doctor";
+  readonly cwd?: string | undefined;
+  readonly packageManager?: PackageManager | undefined;
+}
+
+export type CliOptions = CreateCliOptions | ApplyCliOptions | DoctorCliOptions;

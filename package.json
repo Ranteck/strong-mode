@@ -8,6 +8,10 @@
   ],
   "scripts": {
     "sync:template": "node scripts/sync-template.mjs",
+    "verify:template-sync": "node scripts/verify-template-sync.mjs",
+    "verify:pack": "node scripts/verify-pack-contents.mjs",
+    "smoke:tarball": "node scripts/smoke-pack-install.mjs",
+    "release:check": "npm run verify:template-sync && npm run check && npm run build && npm run verify:pack && npm run smoke:tarball",
     "build": "npm run build -w create-zero-ts",
     "typecheck": "npm run typecheck -w create-zero-ts",
     "lint": "npm run lint -w create-zero-ts",

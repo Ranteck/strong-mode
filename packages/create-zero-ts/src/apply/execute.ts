@@ -6,6 +6,7 @@ import type { ApplyPlan, ApplyProgressEvent, ApplySummary } from "./types.js";
 import { installCommand } from "../package-manager.js";
 import { runCommand } from "../process.js";
 import type { PackageManager } from "../types.js";
+import type { ConflictResolver } from "./prompts.js";
 
 export interface ExecuteApplyPlanOptions {
   readonly targetDir: string;
@@ -15,6 +16,7 @@ export interface ExecuteApplyPlanOptions {
   readonly backup: boolean;
   readonly shouldInstall: boolean;
   readonly shouldRunChecks: boolean;
+  readonly conflictResolver?: ConflictResolver;
   readonly onProgress?: (event: ApplyProgressEvent) => void;
 }
 
@@ -68,7 +70,11 @@ const applyPackageJson = async (
 
   const decision = options.conflictPolicy === "overwrite"
     ? { action: "overwrite" as const, content: nextSource }
-    : await promptFileConflictResolution("package.json", currentSource, nextSource);
+    : await (options.conflictResolver ?? promptFileConflictResolution)(
+      "package.json",
+      currentSource,
+      nextSource,
+    );
 
   if (decision.action === "skip") {
     return false;
@@ -143,7 +149,7 @@ export const executeApplyPlan = async (
 
     const decision = options.conflictPolicy === "overwrite"
       ? { action: "overwrite" as const, content: managedFile.content }
-      : await promptFileConflictResolution(
+      : await (options.conflictResolver ?? promptFileConflictResolution)(
         managedFile.relativePath,
         existing,
         managedFile.content,

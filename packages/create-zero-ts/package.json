@@ -15,14 +15,17 @@
     "node": ">=22"
   },
   "scripts": {
-    "prebuild": "node ../../scripts/sync-template.mjs",
+    "sync:template": "node ../../scripts/sync-template.mjs",
+    "verify:template-sync": "node ../../scripts/verify-template-sync.mjs",
+    "verify:pack": "node ../../scripts/verify-pack-contents.mjs",
+    "smoke:tarball": "node ../../scripts/smoke-pack-install.mjs",
     "build": "tsup --config tsup.config.ts",
     "dev": "tsx src/cli.ts",
     "typecheck": "tsc --noEmit",
     "lint": "eslint src/ --max-warnings 0",
     "test": "vitest run",
     "check": "npm run typecheck && npm run lint && npm run test",
-    "prepack": "node ../../scripts/sync-template.mjs"
+    "prepublishOnly": "npm run verify:template-sync && npm run check && npm run build && npm run verify:pack && npm run smoke:tarball"
   },
   "dependencies": {
     "@clack/prompts": "^0.11.0",

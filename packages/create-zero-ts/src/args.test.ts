@@ -82,6 +82,24 @@ describe("parseCliArgs", (): void => {
     expect(parsed.cwd).toBe("./project");
   });
 
+  it("parses doctor command flags", (): void => {
+    const parsed = parseCliArgs(["doctor", "--pm", "bun", "--cwd=./workspace"]);
+
+    expect(parsed.command).toBe("doctor");
+    if (parsed.command !== "doctor") {
+      throw new Error("Expected doctor command");
+    }
+
+    expect(parsed.packageManager).toBe("bun");
+    expect(parsed.cwd).toBe("./workspace");
+  });
+
+  it("rejects positional args for doctor", (): void => {
+    expect((): void => {
+      parseCliArgs(["doctor", "unexpected-positional"]);
+    }).toThrowError("Unknown positional argument for doctor");
+  });
+
   it("throws on unknown flags", (): void => {
     expect((): void => {
       parseCliArgs(["--unknown"]);
