@@ -1,42 +1,49 @@
 # Repository Guidelines
 
 ## Project Structure & Module Organization
-This repository is a workspace for a TypeScript project generator.
-- `packages/scaffold-ultra/template/`: source-of-truth template files copied into new projects.
-- `packages/create-zero-ts/`: CLI package published as `create-zero-ts` (`npm create zero-ts`).
-- `scripts/sync-template.mjs`: syncs the scaffold into `packages/create-zero-ts/template` before build/publish.
-- `Docs/`: planning and prompt notes.
+This repository is an npm workspace monorepo:
+- `packages/create-zero-ts`: published CLI (`zero-ts` / `create-zero-ts`) source in `src/`, tests in `src/**/*.test.ts`, build output in `dist/`.
+- `packages/scaffold-ultra/template`: source-of-truth scaffold template files.
+- `packages/create-zero-ts/template`: synced copy of the scaffold used for publishing.
+- `scripts/sync-template.mjs`: copies `scaffold-ultra/template` into `create-zero-ts/template`.
 
-Keep generated-project rules inside `packages/scaffold-ultra/template`, not directly in the CLI logic.
+Rule: edit template files in `packages/scaffold-ultra/template` first, then run sync.
 
 ## Build, Test, and Development Commands
+Use Node `>=22` and npm workspaces.
 - `npm install`: install workspace dependencies.
-- `npm run sync:template`: copy scaffold files into the CLI package.
-- `npm run build`: build `create-zero-ts` with `tsup`.
-- `npm run typecheck`: run strict TypeScript checks for the CLI package.
-- `npm run lint`: run ESLint on CLI source.
-- `npm run test`: run CLI unit tests (Vitest).
-- `npm run check`: run typecheck + lint + tests.
+- `npm run sync:template`: refresh `packages/create-zero-ts/template` from scaffold source.
+- `npm run build`: build CLI package with `tsup`.
+- `npm run typecheck`: run `tsc --noEmit` in `create-zero-ts`.
+- `npm run lint`: run ESLint with zero warnings allowed.
+- `npm run test`: run Vitest tests.
+- `npm run check`: run typecheck + lint + test.
 
-Local smoke test:
-- `node packages/create-zero-ts/dist/cli.js demo --yes --no-install`
+Useful local CLI smoke tests:
+- `node packages/create-zero-ts/dist/cli.js demo-app --yes --no-install`
 - `node packages/create-zero-ts/dist/cli.js apply --dry-run --yes`
 
 ## Coding Style & Naming Conventions
-- TypeScript ESM everywhere (`"type": "module"`).
-- Strict typing required; avoid `any`.
-- Keep CLI code in `packages/create-zero-ts/src` with small focused modules (`args.ts`, `template.ts`, etc.).
-- Use clear, imperative script names (`sync:template`, `deps:cycles`).
+TypeScript is strict and ESM-first (`module: NodeNext`).
+- Prettier settings (template): 2 spaces, semicolons, double quotes, trailing commas, `printWidth: 88`.
+- ESLint uses `typescript-eslint` strict + stylistic configs.
+- Keep explicit return types on functions (`@typescript-eslint/explicit-function-return-type`).
+- Prefer consistent type imports and avoid floating promises.
+- File names are kebab-case (for example `create-command.ts`, `package-manager.ts`).
 
 ## Testing Guidelines
-- Framework: Vitest (`packages/create-zero-ts/vitest.config.ts`).
-- Test files: `*.test.ts` alongside source in `packages/create-zero-ts/src/`.
-- Add tests for argument parsing, path handling, and template rendering helpers when behavior changes.
+Framework: Vitest (`packages/create-zero-ts/vitest.config.ts`).
+- Test files must be named `*.test.ts` under `src/`.
+- Run `npm run test` for CI-equivalent execution.
+- For generated projects, quality gates include `test:coverage` via `zero:quality`.
 
 ## Commit & Pull Request Guidelines
-No mature commit convention exists yet; use Conventional Commits (`feat:`, `fix:`, `chore:`) with imperative summaries.
+Follow Conventional Commit style seen in history:
+- `feat: ...`
+- `refactor: ...`
+- `docs: ...`
 
 PRs should include:
-- What changed (`scaffold`, `CLI`, or both).
-- Why it changed (user-facing impact).
-- Validation evidence (`npm run check`, plus one local scaffold run).
+- Clear summary of behavior changes and affected package(s).
+- Linked issue/context when applicable.
+- Command results used for validation (at minimum `npm run check`; include CLI dry-run output for generator changes).
