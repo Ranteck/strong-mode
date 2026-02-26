@@ -55,28 +55,33 @@ const applyPackageJson = async (
     return false;
   }
 
-  const decision = currentSource === undefined
-    ? "overwrite"
-    : options.conflictPolicy === "overwrite"
-    ? "overwrite"
-    : options.conflictPolicy === "skip"
-    ? "skip"
-    : await promptFileConflictResolution(
-      "package.json",
-      currentSource,
-      nextSource,
-    );
+  if (currentSource === undefined) {
+    if (!options.dryRun) {
+      await writeTextFile(packageJsonPath, nextSource);
+    }
+    return true;
+  }
 
-  if (decision === "skip") {
+  if (options.conflictPolicy === "skip") {
     return false;
   }
 
-  if (options.backup && currentSource !== undefined && !options.dryRun) {
+  const decision = options.conflictPolicy === "overwrite"
+    ? { action: "overwrite" as const, content: nextSource }
+    : await promptFileConflictResolution("package.json", currentSource, nextSource);
+
+  if (decision.action === "skip") {
+    return false;
+  }
+
+  const finalContent = "content" in decision ? decision.content : nextSource;
+
+  if (options.backup && !options.dryRun) {
     await backupFile(packageJsonPath);
   }
 
   if (!options.dryRun) {
-    await writeTextFile(packageJsonPath, nextSource);
+    await writeTextFile(packageJsonPath, finalContent);
   }
 
   return true;
@@ -131,20 +136,25 @@ export const executeApplyPlan = async (
       continue;
     }
 
+    if (options.conflictPolicy === "skip") {
+      skippedFiles.push(managedFile.relativePath);
+      continue;
+    }
+
     const decision = options.conflictPolicy === "overwrite"
-      ? "overwrite"
-      : options.conflictPolicy === "skip"
-      ? "skip"
+      ? { action: "overwrite" as const, content: managedFile.content }
       : await promptFileConflictResolution(
         managedFile.relativePath,
         existing,
         managedFile.content,
       );
 
-    if (decision === "skip") {
+    if (decision.action === "skip") {
       skippedFiles.push(managedFile.relativePath);
       continue;
     }
+
+    const finalContent = "content" in decision ? decision.content : managedFile.content;
 
     if (options.backup && !options.dryRun) {
       await backupFile(targetPath);
@@ -153,7 +163,7 @@ export const executeApplyPlan = async (
     await writeManagedFile(
       options.targetDir,
       managedFile.relativePath,
-      managedFile.content,
+      finalContent,
       options.dryRun,
     );
     overwrittenFiles.push(managedFile.relativePath);

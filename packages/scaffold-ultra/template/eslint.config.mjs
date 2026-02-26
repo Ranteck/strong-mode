@@ -11,7 +11,7 @@ export default tseslint.config(
   eslint.configs.recommended,
   ...tseslint.configs.strictTypeChecked,
   ...tseslint.configs.stylisticTypeChecked,
-  unicorn.configs.recommended,
+  unicorn.configs["flat/recommended"],
   sonarjs.configs.recommended,
   security.configs.recommended,
   {
