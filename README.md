@@ -54,6 +54,28 @@ Create without install:
 npx create-zero-ts create my-app -y -n
 ```
 
+## After `create` or `up`
+
+Inside your project, run:
+
+```bash
+cd <your-project>
+npm install
+npm run check
+npm run quality
+```
+
+What these do:
+
+- `check`: fast validation (typecheck, lint, tests/format/dead-code depending on project scripts)
+- `quality`: full validation (coverage, dependency checks, audit, and other strict gates)
+
+If you are unsure which scripts are available, list them with:
+
+```bash
+npm run
+```
+
 ## Short Flags
 
 Common:
