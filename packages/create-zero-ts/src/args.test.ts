@@ -29,6 +29,21 @@ describe("parseCliArgs", (): void => {
     expect(parsed.install).toBe(false);
   });
 
+  it("parses explicit create subcommand and short flags", (): void => {
+    const parsed = parseCliArgs(["create", "demo-app", "-p", "pnpm", "-d", "./demo", "-i", "-g"]);
+
+    expect(parsed.command).toBe("create");
+    if (parsed.command !== "create") {
+      throw new Error("Expected create command");
+    }
+
+    expect(parsed.projectName).toBe("demo-app");
+    expect(parsed.packageManager).toBe("pnpm");
+    expect(parsed.targetDir).toBe("./demo");
+    expect(parsed.install).toBe(true);
+    expect(parsed.skipGit).toBe(true);
+  });
+
   it("parses apply command flags", (): void => {
     const parsed = parseCliArgs([
       "apply",
@@ -55,6 +70,24 @@ describe("parseCliArgs", (): void => {
     expect(parsed.runChecks).toBe(true);
     expect(parsed.install).toBe(false);
     expect(parsed.wizard).toBe(false);
+  });
+
+  it("parses up alias and short apply flags", (): void => {
+    const parsed = parseCliArgs(["up", "-w", "-b", "-d", "-f", "-c", "-n", "-p", "npm", "-C", "."]);
+
+    expect(parsed.command).toBe("apply");
+    if (parsed.command !== "apply") {
+      throw new Error("Expected apply command");
+    }
+
+    expect(parsed.wizard).toBe(true);
+    expect(parsed.backup).toBe(true);
+    expect(parsed.dryRun).toBe(true);
+    expect(parsed.force).toBe(true);
+    expect(parsed.runChecks).toBe(true);
+    expect(parsed.install).toBe(false);
+    expect(parsed.packageManager).toBe("npm");
+    expect(parsed.cwd).toBe(".");
   });
 
   it("parses --apply alias", (): void => {
@@ -92,6 +125,18 @@ describe("parseCliArgs", (): void => {
 
     expect(parsed.packageManager).toBe("bun");
     expect(parsed.cwd).toBe("./workspace");
+  });
+
+  it("parses short doctor flags", (): void => {
+    const parsed = parseCliArgs(["doctor", "-p", "npm", "-C", "."]);
+
+    expect(parsed.command).toBe("doctor");
+    if (parsed.command !== "doctor") {
+      throw new Error("Expected doctor command");
+    }
+
+    expect(parsed.packageManager).toBe("npm");
+    expect(parsed.cwd).toBe(".");
   });
 
   it("rejects positional args for doctor", (): void => {

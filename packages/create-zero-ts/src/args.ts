@@ -67,12 +67,17 @@ const parseCreateOptions = (argv: readonly string[]): CreateCliOptions => {
       continue;
     }
 
-    if (token === "--no-install") {
+    if (token === "-i") {
+      options.install = true;
+      continue;
+    }
+
+    if (token === "--no-install" || token === "-n") {
       options.install = false;
       continue;
     }
 
-    if (token === "--skip-git") {
+    if (token === "--skip-git" || token === "-g") {
       options.skipGit = true;
       continue;
     }
@@ -82,7 +87,7 @@ const parseCreateOptions = (argv: readonly string[]): CreateCliOptions => {
       continue;
     }
 
-    if (token === "--pm") {
+    if (token === "--pm" || token === "-p") {
       options.packageManager = parsePackageManager(argv[index + 1] ?? "");
       index += 1;
       continue;
@@ -93,14 +98,14 @@ const parseCreateOptions = (argv: readonly string[]): CreateCliOptions => {
       continue;
     }
 
-    if (token === "--dir") {
+    if (token === "--dir" || token === "-d") {
       options.targetDir = argv[index + 1];
       index += 1;
       continue;
     }
 
-    if (token === "--apply") {
-      throw new Error("Use `apply` as a subcommand or at the beginning of args.");
+    if (token === "--apply" || token === "--up") {
+      throw new Error("Use `apply` or `up` as a subcommand or at the beginning of args.");
     }
 
     throw new Error(`Unknown argument: ${token}`);
@@ -145,42 +150,42 @@ const parseApplyOptions = (argv: readonly string[]): ApplyCliOptions => {
       continue;
     }
 
-    if (token === "--wizard") {
+    if (token === "--wizard" || token === "-w") {
       options.wizard = true;
       continue;
     }
 
-    if (token === "--dry-run") {
+    if (token === "--dry-run" || token === "-d") {
       options.dryRun = true;
       continue;
     }
 
-    if (token === "--install") {
+    if (token === "--install" || token === "-i") {
       options.install = true;
       continue;
     }
 
-    if (token === "--no-install") {
+    if (token === "--no-install" || token === "-n") {
       options.install = false;
       continue;
     }
 
-    if (token === "--check") {
+    if (token === "--check" || token === "-c") {
       options.runChecks = true;
       continue;
     }
 
-    if (token === "--no-check") {
+    if (token === "--no-check" || token === "-k") {
       options.runChecks = false;
       continue;
     }
 
-    if (token === "--backup") {
+    if (token === "--backup" || token === "-b") {
       options.backup = true;
       continue;
     }
 
-    if (token === "--force") {
+    if (token === "--force" || token === "-f") {
       options.force = true;
       continue;
     }
@@ -190,7 +195,7 @@ const parseApplyOptions = (argv: readonly string[]): ApplyCliOptions => {
       continue;
     }
 
-    if (token === "--pm") {
+    if (token === "--pm" || token === "-p") {
       options.packageManager = parsePackageManager(argv[index + 1] ?? "");
       index += 1;
       continue;
@@ -201,7 +206,7 @@ const parseApplyOptions = (argv: readonly string[]): ApplyCliOptions => {
       continue;
     }
 
-    if (token === "--cwd") {
+    if (token === "--cwd" || token === "-C") {
       options.cwd = argv[index + 1];
       index += 1;
       continue;
@@ -250,7 +255,7 @@ const parseDoctorOptions = (argv: readonly string[]): DoctorCliOptions => {
       continue;
     }
 
-    if (token === "--pm") {
+    if (token === "--pm" || token === "-p") {
       options.packageManager = parsePackageManager(argv[index + 1] ?? "");
       index += 1;
       continue;
@@ -261,7 +266,7 @@ const parseDoctorOptions = (argv: readonly string[]): DoctorCliOptions => {
       continue;
     }
 
-    if (token === "--cwd") {
+    if (token === "--cwd" || token === "-C") {
       options.cwd = argv[index + 1];
       index += 1;
       continue;
@@ -279,12 +284,16 @@ const parseDoctorOptions = (argv: readonly string[]): DoctorCliOptions => {
 
 export const parseCliArgs = (argv: readonly string[]): CliOptions => {
   const [first, ...rest] = argv;
-  if (first === "apply") {
+  if (first === "apply" || first === "up") {
     return parseApplyOptions(rest);
   }
 
-  if (first === "--apply") {
+  if (first === "--apply" || first === "--up") {
     return parseApplyOptions(rest);
+  }
+
+  if (first === "create" || first === "--create") {
+    return parseCreateOptions(rest);
   }
 
   if (first === "doctor") {
