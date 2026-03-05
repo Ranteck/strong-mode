@@ -1,7 +1,7 @@
 import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { MANAGED_TEMPLATE_FILES } from "./constants.js";
-import { fileExists, readTextIfExists } from "./io.js";
+import { readTextIfExists } from "./io.js";
 import type { ManagedFile, PackageJsonLike } from "./types.js";
 import { renderTemplateContent, sanitizePackageName } from "../template.js";
 
@@ -22,12 +22,16 @@ const readJson = async <T>(filePath: string): Promise<T> => {
 };
 
 export const readJsonIfExists = async <T>(filePath: string): Promise<T | undefined> => {
-  const present = await fileExists(filePath);
-  if (!present) {
+  const source = await readTextIfExists(filePath);
+  if (source === undefined) {
     return undefined;
   }
 
-  return readJson<T>(filePath);
+  try {
+    return JSON.parse(source) as T;
+  } catch (error: unknown) {
+    throw new Error(`Invalid JSON in ${filePath}.`, { cause: error });
+  }
 };
 
 export const detectApplyInput = async (

@@ -16,10 +16,6 @@ const PACKAGE_MANAGER_LABEL: Readonly<Record<PackageManager, string>> = {
   bun: "bun",
 };
 
-const assertUnreachablePackageManager = (packageManager: never): never => {
-  throw new Error(`Unsupported package manager: ${String(packageManager)}`);
-};
-
 export const detectPackageManager = (cwd: string): PackageManager => {
   for (const packageManager of PACKAGE_MANAGERS) {
     const lockFile = LOCK_FILE_BY_PM[packageManager];
@@ -42,37 +38,9 @@ export const detectPackageManager = (cwd: string): PackageManager => {
 export const packageManagerLabel = (packageManager: PackageManager): string =>
   PACKAGE_MANAGER_LABEL[packageManager];
 
-export const installCommand = (packageManager: PackageManager): readonly string[] => {
-  switch (packageManager) {
-    case "npm":
-      return ["install"];
-    case "pnpm":
-      return ["install"];
-    case "yarn":
-      return ["install"];
-    case "bun":
-      return ["install"];
-    default: {
-      return assertUnreachablePackageManager(packageManager);
-    }
-  }
-};
+export const installCommand = (_packageManager: PackageManager): readonly string[] => ["install"];
 
 export const runScriptCommand = (
-  packageManager: PackageManager,
+  _packageManager: PackageManager,
   script: string,
-): readonly string[] => {
-  switch (packageManager) {
-    case "npm":
-      return ["run", script];
-    case "pnpm":
-      return ["run", script];
-    case "yarn":
-      return ["run", script];
-    case "bun":
-      return ["run", script];
-    default: {
-      return assertUnreachablePackageManager(packageManager);
-    }
-  }
-};
+): readonly string[] => ["run", script];

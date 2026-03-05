@@ -1,61 +1,61 @@
-# zero-ts
+# slop-free
 
-`zero-ts` is an ultra-strict TypeScript project generator focused on anti-slop defaults for AI-assisted coding.
-
-## Use
+Retrofit any TypeScript project with ultra-strict anti-slop defaults.
 
 ```bash
-npm create zero-ts@latest my-app
+npx slop-free
 ```
 
-For existing projects:
+Adds strict TypeScript, ESLint, formatting, and quality gates to your existing project — without touching your existing code.
 
-```bash
-npx create-zero-ts apply
+## What it installs
+
+**TypeScript** (`tsconfig.json`):
+- `noUncheckedIndexedAccess`, `exactOptionalPropertyTypes`, `noImplicitOverride`
+- `skipLibCheck: false`
+
+**ESLint** (`eslint.config.mjs`):
+- No `any`, no `ts-expect-error` without a 10-char description, no chained assertions (`as unknown as T`)
+- `process.env` access restricted to `src/env.ts`
+- Complexity limits: cyclomatic ≤ 10, depth ≤ 3, params ≤ 4
+
+**Runtime validation** (`src/env.ts`):
+- Zod-based env validation template — all `process.env` access goes through here
+
+**Quality gates** (npm scripts):
+- `check`: typecheck + lint + format check + dead code (fast, pre-commit)
+- `quality`: check + tests + coverage + dep graph + dep cycles + audit (full)
+
+**Tooling configs**: Prettier, Vitest, Knip (dead code), dependency-cruiser, lefthook (git hooks)
+
+## Options
+
+```
+--dry-run        Preview changes without writing files
+--yes            Skip all prompts, use defaults
+--backup         Back up existing files before overwriting
+--force          Overwrite conflicts without prompting
+--no-install     Skip dependency installation
+--no-check       Skip post-apply typecheck/lint/test run
+--pm <manager>   Package manager: npm | pnpm | yarn | bun
+--cwd <path>     Target directory (default: current directory)
 ```
 
-If you installed the package globally, you can also run:
+## How it works
 
-```bash
-zero-ts apply
-```
+`slop-free` compares 9 config files from its template against your project. New files are created. Conflicts prompt for overwrite/skip/diff. Your `package.json` is merged — dependencies and scripts are added, your existing fields are preserved.
 
-Also works with:
-
-```bash
-pnpm create zero-ts my-app
-yarn create zero-ts my-app
-bun create zero-ts my-app
-```
-
-## What it generates
-
-- Strict TypeScript (`strict`, `noUncheckedIndexedAccess`, `exactOptionalPropertyTypes`, `noImplicitOverride`)
-- ESLint flat config with anti-escape rules (`no any`, controlled `ts-expect-error`, no chained assertions)
-- Runtime validation with `zod` (`src/env.ts` + unknown-input parse pattern)
-- Quality gates:
-  - Fast gate: format, lint, typecheck
-  - Full gate: tests + coverage, dead code, dependency rules, circular checks, audit
-
-## Repository layout
-
-- `packages/scaffold-ultra/template`: source-of-truth scaffold files
-- `packages/create-zero-ts`: published CLI package (`create-zero-ts`)
-- `scripts/sync-template.mjs`: syncs scaffold into CLI package for npm publishing
-
-## Local development
+## Contributing
 
 ```bash
 npm install
-npm run sync:template
-npm run check
-npm run build
+npm run sync:template   # sync scaffold into CLI package
+npm run check           # typecheck + lint + test
+npm run build           # build CLI
 ```
 
-To test locally without publishing:
-
+Test locally:
 ```bash
-npm run build -w create-zero-ts
-node packages/create-zero-ts/dist/cli.js demo-app --yes --no-install
-node packages/create-zero-ts/dist/cli.js apply --dry-run --yes
+npm run build -w slop-free
+node packages/create-zero-ts/dist/cli.js --dry-run --yes
 ```

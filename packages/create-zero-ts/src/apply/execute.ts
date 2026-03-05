@@ -2,7 +2,7 @@ import path from "node:path";
 import { log } from "@clack/prompts";
 import { runPostApplyChecks } from "./checks.js";
 import { backupFile, readTextIfExists, writeTextFile } from "./io.js";
-import { promptFileConflictResolution } from "./prompts.js";
+import { type ConflictResolution, promptFileConflictResolution } from "./prompts.js";
 import type { ApplyPlan, ApplySummary } from "./types.js";
 import { installCommand } from "../package-manager.js";
 import { runCommand } from "../process.js";
@@ -48,7 +48,7 @@ const applyPackageJson = async (
     return false;
   }
 
-  let decision: "overwrite" | "skip";
+  let decision: ConflictResolution;
   if (currentSource === undefined) {
     log.warn("No package.json found in target directory — will create one from template.");
     decision = "overwrite";

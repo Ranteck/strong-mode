@@ -4,9 +4,9 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-`zero-ts` is an ultra-strict TypeScript project generator (CLI tool) focused on anti-slop defaults for AI-assisted coding. It generates new projects with strict TypeScript configurations and provides an "apply" command to retrofit existing projects with the same quality standards.
+`slop-free` is an ultra-strict TypeScript CLI tool focused on anti-slop defaults for AI-assisted coding. It retrofits existing projects with strict TypeScript configurations and quality gates via the `apply` command.
 
-Published as `create-zero-ts` on npm, invoked via `npm create zero-ts@latest`.
+Published as `slop-free` on npm, invoked via `npx slop-free`.
 
 ## Repository Structure
 
@@ -23,25 +23,24 @@ This is an npm workspace monorepo with two key packages:
 ```bash
 npm install                     # Install all workspace dependencies
 npm run sync:template           # Manually sync template (auto-runs before build)
-npm run check                   # Run typecheck, lint, test in create-zero-ts
+npm run check                   # Run typecheck, lint, test in slop-free
 npm run build                   # Build the CLI package
 ```
 
 ### Testing locally without publishing
 ```bash
-npm run build -w create-zero-ts
-node packages/create-zero-ts/dist/cli.js demo-app --yes --no-install
-node packages/create-zero-ts/dist/cli.js apply --dry-run --yes
+npm run build -w slop-free
+node packages/create-zero-ts/dist/cli.js --dry-run --yes
 ```
 
 ### Running a single test file
 ```bash
-npx vitest run src/args.test.ts -w create-zero-ts
-npx vitest run src/apply/patchers.test.ts -w create-zero-ts
+npx vitest run src/args.test.ts -w slop-free
+npx vitest run src/apply/patchers.test.ts -w slop-free
 ```
 
 ### Generated project commands
-Projects created by zero-ts have these npm scripts:
+Scripts added to target projects by `slop-free`:
 - `check`: Fast gate (typecheck + lint + format:check + dead-code)
 - `quality`: Full gate (check + test:coverage + deps:graph + deps:cycles + audit)
 - `test`: Run tests with vitest
@@ -54,13 +53,13 @@ Projects created by zero-ts have these npm scripts:
 
 ### CLI Entry Points
 
-**`src/cli.ts`**: Main entry point. Parses args (`src/args.ts`) and routes to:
-- **`src/create-command.ts`**: Creates new project from scratch (copies template, initializes git, optionally installs)
-- **`src/apply-command.ts`**: Applies template to existing project (detects conflicts, patches package.json, creates backups)
+**`src/cli.ts`**: Main entry point. Calls `parseCliArgs` then `runApplyCommand`.
+
+**`src/apply-command.ts`**: Applies template to existing project — detects conflicts, patches package.json, creates backups.
 
 ### Argument Parsing (`src/args.ts`)
 
-`parseCliArgs(argv)` returns a discriminated union (`CreateCliOptions | ApplyCliOptions`) based on `command` field. First token "apply" or "--apply" routes to apply parsing; everything else is the create command. Both parsers support `--flag value` and `--flag=value` formats and reject unknown flags.
+`parseCliArgs(argv)` returns `ApplyCliOptions`. Supports `--flag value` and `--flag=value` formats. Rejects unknown flags and positional arguments.
 
 ### Template System
 
@@ -83,7 +82,7 @@ Detection order: lockfile presence (`package-lock.json` → npm, `pnpm-lock.yaml
 
 ### Build Tooling
 
-**tsup** bundles `src/cli.ts` → `dist/cli.js` as ESM with `#!/usr/bin/env node` shebang, targeting Node 22. Published package includes `dist/` and `template/` directories with two bin entries: `create-zero-ts` and `zero-ts`.
+**tsup** bundles `src/cli.ts` → `dist/cli.js` as ESM with `#!/usr/bin/env node` shebang, targeting Node 22. Published package includes `dist/` and `template/` directories with one bin entry: `slop-free`.
 
 ## Strict TypeScript Philosophy
 
@@ -104,7 +103,7 @@ Generated projects enforce extreme type safety:
 
 - **Cross-platform**: Uses `cross-spawn` for command execution with shell enabled on Windows
 - **Interactive prompts**: Uses `@clack/prompts` with `exitOnCancel` wrapper (`src/ui.ts`)
-- **CLI flags**: `--yes`, `--dry-run`, `--force`, `--backup`, `--no-install`, `--skip-git`, `--pm=<manager>`, `--cwd=<path>`, `--dir=<path>`
+- **CLI flags**: `--yes`, `--dry-run`, `--force`, `--backup`, `--install/--no-install`, `--check/--no-check`, `--pm=<manager>`, `--cwd=<path>`
 - **Template sync**: MUST run `sync:template` before building to ensure CLI bundles latest scaffold
 - **Node requirement**: Requires Node.js >= 22
 - **ESLint config** (CLI project itself): enforces `explicit-function-return-type`, `no-floating-promises`, `consistent-type-imports`; relaxes return type requirement in test files

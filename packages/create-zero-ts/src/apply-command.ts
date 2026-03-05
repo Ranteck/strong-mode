@@ -1,28 +1,14 @@
 import { confirm, select } from "@clack/prompts";
-import { stat } from "node:fs/promises";
 import path from "node:path";
 import process from "node:process";
 import { detectApplyInput } from "./apply/detect.js";
 import { executeApplyPlan } from "./apply/execute.js";
+import { fileExists } from "./apply/io.js";
 import { buildApplyPlan } from "./apply/plan.js";
-import { isErrnoException } from "./errors.js";
 import { detectPackageManager, packageManagerLabel } from "./package-manager.js";
 import { resolveTemplateDir } from "./template.js";
 import { PACKAGE_MANAGERS, type ApplyCliOptions, type PackageManager } from "./types.js";
 import { exitOnCancel } from "./ui.js";
-
-const targetExists = async (targetPath: string): Promise<boolean> => {
-  try {
-    await stat(targetPath);
-    return true;
-  } catch (error: unknown) {
-    if (isErrnoException(error) && error.code === "ENOENT") {
-      return false;
-    }
-
-    throw error;
-  }
-};
 
 const choosePackageManager = async (
   initialValue: PackageManager,
@@ -110,7 +96,7 @@ const summarizeResult = (result: Awaited<ReturnType<typeof executeApplyPlan>>): 
 
 export const runApplyCommand = async (options: ApplyCliOptions): Promise<readonly string[]> => {
   const targetDir = path.resolve(process.cwd(), options.cwd ?? ".");
-  if (!(await targetExists(targetDir))) {
+  if (!(await fileExists(targetDir))) {
     throw new Error(`Target directory does not exist: ${targetDir}`);
   }
 
