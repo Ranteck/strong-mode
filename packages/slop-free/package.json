@@ -5,10 +5,10 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/Ranteck/zero-ts.git",
-    "directory": "packages/create-zero-ts"
+    "url": "git+https://github.com/Ranteck/slop-free.git",
+    "directory": "packages/slop-free"
   },
-  "homepage": "https://github.com/Ranteck/zero-ts#readme",
+  "homepage": "https://github.com/Ranteck/slop-free#readme",
   "keywords": [
     "typescript",
     "eslint",

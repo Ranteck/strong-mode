@@ -1,6 +1,6 @@
 {
-  "name": "@zero-ts/scaffold-ultra",
+  "name": "@slop-free/scaffold-ultra",
   "version": "0.1.0",
   "private": true,
-  "description": "Source scaffold for create-zero-ts"
+  "description": "Source scaffold for slop-free"
 }

@@ -1,9 +1,9 @@
 import { confirm, select } from "@clack/prompts";
+import { stat } from "node:fs/promises";
 import path from "node:path";
 import process from "node:process";
 import { detectApplyInput } from "./apply/detect.js";
 import { executeApplyPlan } from "./apply/execute.js";
-import { fileExists } from "./apply/io.js";
 import { buildApplyPlan } from "./apply/plan.js";
 import { detectPackageManager, packageManagerLabel } from "./package-manager.js";
 import { resolveTemplateDir } from "./template.js";
@@ -85,19 +85,32 @@ const summarizePlan = (plan: ReturnType<typeof buildApplyPlan>): readonly string
   return summary;
 };
 
-const summarizeResult = (result: Awaited<ReturnType<typeof executeApplyPlan>>): readonly string[] => [
+const summarizeResult = (
+  result: Awaited<ReturnType<typeof executeApplyPlan>>,
+  dryRun: boolean,
+  shouldInstall: boolean,
+  shouldRunChecks: boolean,
+): readonly string[] => [
   `Created files: ${String(result.createdFiles.length)}`,
   `Overwritten files: ${String(result.overwrittenFiles.length)}`,
   `Skipped files: ${String(result.skippedFiles.length)}`,
   `package.json updated: ${result.packageJsonUpdated ? "yes" : "no"}`,
-  `Install ran: ${result.installRan ? "yes" : "no"}`,
-  `Checks ran: ${result.checksRan.length > 0 ? result.checksRan.join(", ") : "none"}`,
+  dryRun
+    ? `Install: ${shouldInstall ? "would run" : "skipped"}`
+    : `Install ran: ${result.installRan ? "yes" : "no"}`,
+  dryRun
+    ? `Checks: ${shouldRunChecks ? "would run" : "skipped"}`
+    : `Checks ran: ${result.checksRan.length > 0 ? result.checksRan.join(", ") : "none"}`,
 ];
 
 export const runApplyCommand = async (options: ApplyCliOptions): Promise<readonly string[]> => {
   const targetDir = path.resolve(process.cwd(), options.cwd ?? ".");
-  if (!(await fileExists(targetDir))) {
+  const targetStat = await stat(targetDir).catch((): undefined => undefined);
+  if (targetStat === undefined) {
     throw new Error(`Target directory does not exist: ${targetDir}`);
+  }
+  if (!targetStat.isDirectory()) {
+    throw new Error(`Target path is not a directory: ${targetDir}`);
   }
 
   const packageManager = await choosePackageManager(
@@ -138,6 +151,6 @@ export const runApplyCommand = async (options: ApplyCliOptions): Promise<readonl
     ...summary,
     "",
     options.dryRun ? "Dry-run result:" : "Apply result:",
-    ...summarizeResult(result).map((line) => `  - ${line}`),
+    ...summarizeResult(result, options.dryRun, shouldInstall, shouldRunChecks).map((line) => `  - ${line}`),
   ];
 };

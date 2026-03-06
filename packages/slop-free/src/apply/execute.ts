@@ -143,50 +143,42 @@ export const executeApplyPlan = async (
   const packageJsonUpdated = await applyPackageJson(plan, options);
 
   let installRan = false;
-  if (options.shouldInstall) {
-    if (options.dryRun) {
-      installRan = true; // dry-run: would have installed
-    } else {
-      const installArgs = installCommand(options.packageManager);
-      try {
-        // runCommand is synchronous (spawnSync) — if refactored to async, add await here
-        runCommand(
-          options.packageManager,
-          installArgs,
-          options.targetDir,
-          "inherit",
-        );
-        installRan = true;
-      } catch (error: unknown) {
-        throw new Error(
-          `Install failed after apply wrote project changes (created: ${String(createdFiles.length)}, overwritten: ${String(overwrittenFiles.length)}, package.json updated: ${packageJsonUpdated ? "yes" : "no"}). The project may be in a partial state. Review changes and rerun \`${options.packageManager} ${installArgs.join(" ")}\`.`,
-          { cause: error },
-        );
-      }
+  if (options.shouldInstall && !options.dryRun) {
+    const installArgs = installCommand();
+    try {
+      // runCommand is synchronous (spawnSync) — if refactored to async, add await here
+      runCommand(
+        options.packageManager,
+        installArgs,
+        options.targetDir,
+        "inherit",
+      );
+      installRan = true;
+    } catch (error: unknown) {
+      throw new Error(
+        `Install failed after apply wrote project changes (created: ${String(createdFiles.length)}, overwritten: ${String(overwrittenFiles.length)}, package.json updated: ${packageJsonUpdated ? "yes" : "no"}). The project may be in a partial state. Review changes and rerun \`${options.packageManager} ${installArgs.join(" ")}\`.`,
+        { cause: error },
+      );
     }
   }
 
   let checksRan: readonly string[] = [];
-  if (options.shouldRunChecks) {
-    if (options.dryRun) {
-      checksRan = ["typecheck", "lint", "test"];
-    } else {
-      const packageJsonForChecks =
-        packageJsonUpdated
-          ? plan.packageJsonPlan.next
-          : (plan.packageJsonPlan.current ?? plan.packageJsonPlan.next);
-      try {
-        // runCommand is synchronous (spawnSync) — if refactored to async, add await here
-        checksRan = runPostApplyChecks(options.packageManager, options.targetDir, packageJsonForChecks);
-      } catch (error: unknown) {
-        throw new Error(
-          `Post-apply check failed (apply already wrote project changes — ` +
-          `created: ${String(createdFiles.length)}, overwritten: ${String(overwrittenFiles.length)}, ` +
-          `package.json updated: ${packageJsonUpdated ? "yes" : "no"}). ` +
-          `Review changes then fix the check failure.`,
-          { cause: error },
-        );
-      }
+  if (options.shouldRunChecks && !options.dryRun) {
+    const packageJsonForChecks =
+      packageJsonUpdated
+        ? plan.packageJsonPlan.next
+        : (plan.packageJsonPlan.current ?? plan.packageJsonPlan.next);
+    try {
+      // runCommand is synchronous (spawnSync) — if refactored to async, add await here
+      checksRan = runPostApplyChecks(options.packageManager, options.targetDir, packageJsonForChecks);
+    } catch (error: unknown) {
+      throw new Error(
+        `Post-apply check failed (apply already wrote project changes — ` +
+        `created: ${String(createdFiles.length)}, overwritten: ${String(overwrittenFiles.length)}, ` +
+        `package.json updated: ${packageJsonUpdated ? "yes" : "no"}). ` +
+        `Review changes then fix the check failure.`,
+        { cause: error },
+      );
     }
   }
 

@@ -1,4 +1,4 @@
-# Idea: Zero-TS - El Anti-Slop para TypeScript
+# Idea: Slop-Free - El Anti-Slop para TypeScript
 
 Mi idea es crear un paquete npm que permita configurar cualquier proyecto de TypeScript (frame-agnostic) con reglas, paquetes y librerías estrictas para evitar el "slop" en el código.
 

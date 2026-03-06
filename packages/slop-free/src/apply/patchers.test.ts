@@ -34,7 +34,9 @@ describe("buildPackageJsonPlan", (): void => {
 
     expect(plan.summary.changed).toBe(true);
     expect(plan.summary.addedScripts).toContain("check");
-    expect(plan.summary.updatedScripts).toContain("test");
+    // user's existing "test" script must not be overwritten
+    expect(plan.summary.updatedScripts).not.toContain("test");
+    expect(plan.next.scripts?.test).toBe("vitest");
     expect(plan.summary.addedDependencies).toContain("zod");
     expect(plan.summary.addedDevDependencies).toContain("eslint");
     expect(plan.next.scripts?.prepare).toBe("lefthook install");

@@ -11,9 +11,13 @@ export const exitOnCancel = <T>(value: T | symbol): T => {
   return value;
 };
 
-const formatThrownValue = (value: unknown): string => {
+const formatThrownValue = (value: unknown, depth = 0): string => {
   if (value instanceof Error) {
-    const cause = value.cause === undefined ? "" : ` (cause: ${formatThrownValue(value.cause)})`;
+    const indent = "  ".repeat(depth + 1);
+    const cause =
+      value.cause === undefined
+        ? ""
+        : `\n${indent}caused by: ${formatThrownValue(value.cause, depth + 1)}`;
     return `${value.message}${cause}`;
   }
 
@@ -43,10 +47,10 @@ const formatThrownValue = (value: unknown): string => {
 
   try {
     return JSON.stringify(value);
-  } catch (_jsonError: unknown) {
+  } catch {
     try {
       return inspect(value, { depth: 3 });
-    } catch (_inspectError: unknown) {
+    } catch {
       return "[unserializable value]";
     }
   }

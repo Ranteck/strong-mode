@@ -38,9 +38,6 @@ export const detectPackageManager = (cwd: string): PackageManager => {
 export const packageManagerLabel = (packageManager: PackageManager): string =>
   PACKAGE_MANAGER_LABEL[packageManager];
 
-export const installCommand = (_packageManager: PackageManager): readonly string[] => ["install"];
+export const installCommand = (): readonly string[] => ["install"];
 
-export const runScriptCommand = (
-  _packageManager: PackageManager,
-  script: string,
-): readonly string[] => ["run", script];
+export const runScriptCommand = (script: string): readonly string[] => ["run", script];

@@ -1,7 +1,7 @@
 export interface PackageJsonLike {
   name?: string;
   version?: string;
-  type?: string;
+  type?: "module" | "commonjs";
   private?: boolean;
   scripts?: Record<string, string>;
   dependencies?: Record<string, string>;

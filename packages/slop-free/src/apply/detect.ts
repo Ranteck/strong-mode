@@ -12,26 +12,41 @@ export interface ApplyDetection {
   readonly projectName: string;
 }
 
-const readJson = async <T>(filePath: string): Promise<T> => {
-  const source = await readFile(filePath, "utf8");
+const readJson = async <T extends object>(filePath: string): Promise<T> => {
+  let source: string;
   try {
-    return JSON.parse(source) as T;
+    source = await readFile(filePath, "utf8");
+  } catch (error: unknown) {
+    throw new Error(`Failed to read ${filePath}.`, { cause: error });
+  }
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(source) as unknown;
   } catch (error: unknown) {
     throw new Error(`Invalid JSON in ${filePath}.`, { cause: error });
   }
+  if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed)) {
+    throw new Error(`Expected a JSON object in ${filePath}, got ${Array.isArray(parsed) ? "array" : String(parsed)}.`);
+  }
+  return parsed as T;
 };
 
-export const readJsonIfExists = async <T>(filePath: string): Promise<T | undefined> => {
+export const readJsonIfExists = async <T extends object>(filePath: string): Promise<T | undefined> => {
   const source = await readTextIfExists(filePath);
   if (source === undefined) {
     return undefined;
   }
 
+  let parsed: unknown;
   try {
-    return JSON.parse(source) as T;
+    parsed = JSON.parse(source) as unknown;
   } catch (error: unknown) {
     throw new Error(`Invalid JSON in ${filePath}.`, { cause: error });
   }
+  if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed)) {
+    throw new Error(`Expected a JSON object in ${filePath}, got ${Array.isArray(parsed) ? "array" : String(parsed)}.`);
+  }
+  return parsed as T;
 };
 
 export const detectApplyInput = async (
@@ -68,7 +83,7 @@ export const detectApplyInput = async (
         sourceContent = await readFile(sourceTemplatePath, "utf8");
       } catch (error: unknown) {
         throw new Error(
-          `Failed to read template file ${managedTemplateFile.sourceRelativePath}. Run \`npm run sync:template\` or reinstall create-zero-ts.`,
+          `Failed to read template file ${managedTemplateFile.sourceRelativePath}. Run \`npm run sync:template\` or reinstall slop-free.`,
           { cause: error },
         );
       }

@@ -31,7 +31,7 @@ export const resolveTemplateDir = (): string => {
   const templateDir = path.resolve(currentDir, "../template");
   if (!pathExistsSync(templateDir)) {
     throw new Error(
-      `Template directory not found: ${templateDir}. Run \`npm run sync:template\` in this repository or reinstall create-zero-ts.`,
+      `Template directory not found: ${templateDir}. Run \`npm run sync:template\` in this repository or reinstall slop-free.`,
     );
   }
 

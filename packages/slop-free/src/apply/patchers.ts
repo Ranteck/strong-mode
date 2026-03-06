@@ -76,12 +76,6 @@ const mergeScripts = (
     if (previous === undefined) {
       baseScripts[key] = templateValue;
       addedScripts.push(key);
-      continue;
-    }
-
-    if (previous !== templateValue) {
-      baseScripts[key] = templateValue;
-      updatedScripts.push(key);
     }
   }
 
@@ -146,8 +140,8 @@ export const buildPackageJsonPlan = (
   next.type = typeof current?.type === "string" ? current.type : "module";
   next.private = typeof current?.private === "boolean" ? current.private : true;
   next.engines = {
-    ...(templatePackageJson.engines ?? {}),
     ...(current?.engines ?? {}),
+    ...(templatePackageJson.engines ?? {}),
   };
 
   const mergedScripts = mergeScripts(current?.scripts, templatePackageJson.scripts);

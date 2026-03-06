@@ -13,9 +13,9 @@ Published as `slop-free` on npm, invoked via `npx slop-free`.
 This is an npm workspace monorepo with two key packages:
 
 - **`packages/scaffold-ultra/template/`**: Source of truth for all scaffold files (tsconfig, eslint, vitest, etc.)
-- **`packages/create-zero-ts/`**: Published CLI package that contains the generator logic
+- **`packages/slop-free/`**: Published CLI package that contains the generator logic
 
-**Critical sync mechanism**: `scripts/sync-template.mjs` copies `scaffold-ultra/template/` → `create-zero-ts/template/` for npm publishing. This runs automatically before build/pack via prebuild/prepack hooks.
+**Critical sync mechanism**: `scripts/sync-template.mjs` copies `scaffold-ultra/template/` → `slop-free/template/` for npm publishing. This runs automatically before build/pack via prebuild/prepack hooks.
 
 ## Common Commands
 
@@ -30,7 +30,7 @@ npm run build                   # Build the CLI package
 ### Testing locally without publishing
 ```bash
 npm run build -w slop-free
-node packages/create-zero-ts/dist/cli.js --dry-run --yes
+node packages/slop-free/dist/cli.js --dry-run --yes
 ```
 
 ### Running a single test file
@@ -74,7 +74,7 @@ The apply command (for existing projects) uses a detect → plan → execute pip
 1. **`src/apply/detect.ts`**: Reads target project state — existing package.json, which managed files already exist, and their current content
 2. **`src/apply/plan.ts`**: Splits managed files into `filesToCreate` (new) and `conflictingFiles` (existing), builds package.json merge plan
 3. **`src/apply/patchers.ts`**: Generates package.json merge plan — adds template dependencies/scripts without removing existing ones. Special handling for `prepare` script (appends `lefthook install` if missing)
-4. **`src/apply/execute.ts`**: Executes the plan with dry-run, backup (`{file}.zero-ts-backup.{ISO-timestamp}`), and force options. Prompts for conflict resolution (overwrite/skip/diff preview)
+4. **`src/apply/execute.ts`**: Executes the plan with dry-run, backup (`{file}.slop-free-backup.{ISO-timestamp}`), and force options. Prompts for conflict resolution (overwrite/skip/diff preview)
 
 ### Package Manager Detection (`src/package-manager.ts`)
 
@@ -111,7 +111,7 @@ Generated projects enforce extreme type safety:
 ## Testing
 
 - Uses Vitest with globals mode (`describe`, `it`, `expect` available without imports)
-- Test files: `*.test.ts` colocated in `packages/create-zero-ts/src/`
+- Test files: `*.test.ts` colocated in `packages/slop-free/src/`
 - Key test suites: `args.test.ts` (flag parsing), `template.test.ts` (name validation), `apply/patchers.test.ts` (package.json merge), `apply/plan.test.ts` (file splitting)
 
 ## Important Constraints

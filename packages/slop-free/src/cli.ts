@@ -14,7 +14,8 @@ const run = async (): Promise<void> => {
   outro(lines.join("\n"));
 };
 
-await run().catch((error: unknown): never => {
-  process.stderr.write(color.red(`\nFailed: ${formatError(error)}\n`));
-  process.exit(1);
+await run().catch((error: unknown): void => {
+  process.stderr.write(color.red(`\nFailed: ${formatError(error)}\n`), () => {
+    process.exit(1);
+  });
 });

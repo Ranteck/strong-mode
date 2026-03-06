@@ -15,7 +15,8 @@
       "Bash(npx vitest:*)",
       "Bash(npm view:*)",
       "Bash(npx eslint:*)",
-      "Bash(npm install:*)"
+      "Bash(npm install:*)",
+      "Bash(rm:*)"
     ]
   }
 }

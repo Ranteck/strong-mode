@@ -48,7 +48,7 @@ export const writeTextFile = async (filePath: string, content: string): Promise<
 
 export const backupFile = async (sourcePath: string): Promise<string> => {
   const dateToken = new Date().toISOString().replaceAll(":", "-");
-  const backupPath = `${sourcePath}.zero-ts-backup.${dateToken}`;
+  const backupPath = `${sourcePath}.slop-free-backup.${dateToken}`;
   try {
     await copyFile(sourcePath, backupPath);
   } catch (error: unknown) {

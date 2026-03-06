@@ -11,7 +11,7 @@ describe("fileExists", (): void => {
   });
 
   it("returns true for a path that exists", async (): Promise<void> => {
-    const tmpFile = path.join(os.tmpdir(), `zero-ts-test-${String(Date.now())}.txt`);
+    const tmpFile = path.join(os.tmpdir(), `slop-free-test-${String(Date.now())}.txt`);
     await writeFile(tmpFile, "hello");
     const result = await fileExists(tmpFile);
     expect(result).toBe(true);
@@ -25,7 +25,7 @@ describe("readTextIfExists", (): void => {
   });
 
   it("returns the file content when the file exists", async (): Promise<void> => {
-    const tmpFile = path.join(os.tmpdir(), `zero-ts-test-${String(Date.now())}.txt`);
+    const tmpFile = path.join(os.tmpdir(), `slop-free-test-${String(Date.now())}.txt`);
     await writeFile(tmpFile, "hello world");
     const result = await readTextIfExists(tmpFile);
     expect(result).toBe("hello world");

@@ -57,5 +57,5 @@ npm run build           # build CLI
 Test locally:
 ```bash
 npm run build -w slop-free
-node packages/create-zero-ts/dist/cli.js --dry-run --yes
+node packages/slop-free/dist/cli.js --dry-run --yes
 ```

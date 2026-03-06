@@ -19,9 +19,13 @@ export const runPostApplyChecks = (
     }
 
     try {
-      runCommand(packageManager, runScriptCommand(packageManager, script), targetDir, "inherit");
+      runCommand(packageManager, runScriptCommand(script), targetDir, "inherit");
     } catch (error: unknown) {
-      throw new Error(`Check '${script}' failed`, { cause: error });
+      const isSpawnError = error instanceof Error && error.message.startsWith("Failed to start");
+      const hint = isSpawnError
+        ? `Check '${script}' could not start — is ${packageManager} installed and on PATH?`
+        : `Check '${script}' failed — see output above`;
+      throw new Error(hint, { cause: error });
     }
     executed.push(script);
   }
