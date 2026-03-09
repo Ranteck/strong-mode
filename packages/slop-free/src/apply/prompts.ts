@@ -1,5 +1,6 @@
 import { select } from "@clack/prompts";
 import process from "node:process";
+import color from "picocolors";
 import { exitOnCancel } from "../ui.js";
 
 export type ConflictResolution = "conflict" | "overwrite" | "skip";
@@ -7,7 +8,7 @@ export type ConflictPromptMode = "managed-file" | "package-json";
 
 const buildPreview = (label: string, content: string): string => {
   const lines = content.split("\n").slice(0, 40).join("\n");
-  return `--- ${label} (first 40 lines) ---\n${lines}\n--- end ${label} ---\n`;
+  return `${color.bold(color.cyan(`--- ${label} (first 40 lines) ---`))}\n${lines}\n${color.dim(`--- end ${label} ---`)}\n`;
 };
 
 const promptOptionsForMode = (
@@ -25,15 +26,15 @@ const promptOptionsForMode = (
       initialValue: "overwrite",
       options: [
         {
-          label: "Overwrite merged package.json (recommended)",
+          label: `${color.green("Overwrite merged package.json")} ${color.dim("(recommended)")}`,
           value: "overwrite",
         },
         {
-          label: "Skip",
+          label: color.dim("Skip"),
           value: "skip",
         },
         {
-          label: "View diff preview",
+          label: color.cyan("View diff preview"),
           value: "preview",
         },
       ],
@@ -45,19 +46,19 @@ const promptOptionsForMode = (
     initialValue: "conflict",
     options: [
       {
-        label: "Write merge conflict markers (recommended)",
+        label: `${color.yellow("Write merge conflict markers")} ${color.dim("(recommended)")}`,
         value: "conflict",
       },
       {
-        label: "Overwrite",
+        label: color.green("Overwrite"),
         value: "overwrite",
       },
       {
-        label: "Skip",
+        label: color.dim("Skip"),
         value: "skip",
       },
       {
-        label: "View diff preview",
+        label: color.cyan("View diff preview"),
         value: "preview",
       },
     ],

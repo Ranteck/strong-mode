@@ -4,6 +4,11 @@ import path from "node:path";
 import { describe, expect, it } from "vitest";
 import { runApplyCommand } from "./apply-command.js";
 
+const ANSI_PATTERN = new RegExp(String.raw`\u001B\[[0-9;]*m`, "gu");
+
+const stripAnsi = (value: string): string =>
+  value.replaceAll(ANSI_PATTERN, "");
+
 const createExistingProject = async (): Promise<string> => {
   const tempDir = await mkdtemp(path.join(os.tmpdir(), "slop-free-apply-command-"));
   await mkdir(path.join(tempDir, "src"), { recursive: true });
@@ -70,11 +75,12 @@ describe("runApplyCommand", (): void => {
       backup: true,
       force: false,
     });
+    const plainLines = lines.map(stripAnsi);
 
-    expect(lines).toContain("Dry-run result:");
-    expect(lines).toContain("  - Conflicted files: 1");
-    expect(lines).toContain("  - Install: would skip due to unresolved conflicts");
-    expect(lines).toContain("  - Checks: would skip due to unresolved conflicts");
+    expect(plainLines).toContain("Dry-run Result");
+    expect(plainLines).toContain("  Conflicted files: 1");
+    expect(plainLines).toContain("  Install: would skip due to unresolved conflicts");
+    expect(plainLines).toContain("  Checks: would skip due to unresolved conflicts");
     expect(await readdir(tempDir)).toEqual(beforeFiles);
     expect(await readFile(path.join(tempDir, "package.json"), "utf8")).toBe(beforePackageJson);
     expect(await readFile(path.join(tempDir, "tsconfig.json"), "utf8")).toBe(beforeTsconfig);
@@ -94,6 +100,7 @@ describe("runApplyCommand", (): void => {
       backup: true,
       force: false,
     });
+    const plainLines = lines.map(stripAnsi);
 
     const packageJson = JSON.parse(await readFile(path.join(tempDir, "package.json"), "utf8")) as {
       scripts: Record<string, string>;
@@ -106,11 +113,11 @@ describe("runApplyCommand", (): void => {
 
     const topLevelFiles = await readdir(tempDir);
 
-    expect(lines).toContain("Apply result:");
-    expect(lines).toContain("  - Conflicted files: 1");
-    expect(lines).toContain("  - package.json updated: yes");
-    expect(lines).toContain("  - Install ran: no");
-    expect(lines).toContain("  - Checks ran: none");
+    expect(plainLines).toContain("Apply Result");
+    expect(plainLines).toContain("  Conflicted files: 1");
+    expect(plainLines).toContain("  Package.json updated: yes");
+    expect(plainLines).toContain("  Install ran: no");
+    expect(plainLines).toContain("  Checks ran: none");
 
     expect(packageJson.scripts.build).toBe("tsc -p tsconfig.json");
     expect(packageJson.scripts.test).toBe("node --test");

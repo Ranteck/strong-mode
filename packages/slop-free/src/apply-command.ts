@@ -8,7 +8,13 @@ import { buildApplyPlan } from "./apply/plan.js";
 import { detectPackageManager, packageManagerLabel } from "./package-manager.js";
 import { resolveTemplateDir } from "./template.js";
 import { PACKAGE_MANAGERS, type ApplyCliOptions, type PackageManager } from "./types.js";
-import { exitOnCancel } from "./ui.js";
+import {
+  exitOnCancel,
+  formatKeyValue,
+  formatPackageManagerOption,
+  formatPath,
+  formatSectionTitle,
+} from "./ui.js";
 
 const choosePackageManager = async (
   initialValue: PackageManager,
@@ -20,11 +26,11 @@ const choosePackageManager = async (
 
   const selected = await select({
     message: "Pick a package manager for install/check commands",
-    initialValue,
-    options: PACKAGE_MANAGERS.map((packageManager) => ({
-      value: packageManager,
-      label: packageManagerLabel(packageManager),
-    })),
+      initialValue,
+      options: PACKAGE_MANAGERS.map((packageManager) => ({
+        value: packageManager,
+        label: formatPackageManagerOption(packageManager, packageManagerLabel(packageManager)),
+      })),
   });
 
   return exitOnCancel(selected);
@@ -72,18 +78,27 @@ const resolveCheckDecision = async (
   return exitOnCancel(selected);
 };
 
-const summarizePlan = (plan: ReturnType<typeof buildApplyPlan>): readonly string[] => {
-  const summary = [
-    `Project name: ${plan.projectName}`,
-    `Files to create: ${String(plan.filesToCreate.length)}`,
-    `Files with conflicts: ${String(plan.conflictingFiles.length)}`,
-    `Package.json changed: ${plan.packageJsonPlan.summary.changed ? "yes" : "no"}`,
-    `Dependencies to add: ${String(plan.packageJsonPlan.summary.addedDependencies.length)}`,
-    `Dev dependencies to add: ${String(plan.packageJsonPlan.summary.addedDevDependencies.length)}`,
-  ];
-
-  return summary;
-};
+const summarizePlan = (plan: ReturnType<typeof buildApplyPlan>): readonly string[] => [
+  formatSectionTitle("Plan Summary"),
+  formatKeyValue("Project name", plan.projectName, "info"),
+  formatKeyValue("Files to create", String(plan.filesToCreate.length), "info"),
+  formatKeyValue("Files with conflicts", String(plan.conflictingFiles.length), "warning"),
+  formatKeyValue(
+    "Package.json changed",
+    plan.packageJsonPlan.summary.changed ? "yes" : "no",
+    plan.packageJsonPlan.summary.changed ? "warning" : "neutral",
+  ),
+  formatKeyValue(
+    "Dependencies to add",
+    String(plan.packageJsonPlan.summary.addedDependencies.length),
+    plan.packageJsonPlan.summary.addedDependencies.length > 0 ? "warning" : "neutral",
+  ),
+  formatKeyValue(
+    "Dev dependencies to add",
+    String(plan.packageJsonPlan.summary.addedDevDependencies.length),
+    plan.packageJsonPlan.summary.addedDevDependencies.length > 0 ? "warning" : "neutral",
+  ),
+];
 
 const summarizeResult = (
   result: Awaited<ReturnType<typeof executeApplyPlan>>,
@@ -112,13 +127,34 @@ const summarizeResult = (
         : (result.checksRan.length > 0 ? result.checksRan.join(", ") : "none"));
 
   return [
-    `Created files: ${String(result.createdFiles.length)}`,
-    `Conflicted files: ${String(result.conflictedFiles.length)}`,
-    `Overwritten files: ${String(result.overwrittenFiles.length)}`,
-    `Skipped files: ${String(result.skippedFiles.length)}`,
-    `package.json updated: ${result.packageJsonUpdated ? "yes" : "no"}`,
-    dryRun ? `Install: ${installSummary}` : `Install ran: ${installSummary}`,
-    dryRun ? `Checks: ${checksSummary}` : `Checks ran: ${checksSummary}`,
+    formatSectionTitle(dryRun ? "Dry-run Result" : "Apply Result"),
+    formatKeyValue("Created files", String(result.createdFiles.length), "success"),
+    formatKeyValue(
+      "Conflicted files",
+      String(result.conflictedFiles.length),
+      result.conflictedFiles.length > 0 ? "warning" : "neutral",
+    ),
+    formatKeyValue(
+      "Overwritten files",
+      String(result.overwrittenFiles.length),
+      result.overwrittenFiles.length > 0 ? "warning" : "neutral",
+    ),
+    formatKeyValue("Skipped files", String(result.skippedFiles.length), "neutral"),
+    formatKeyValue(
+      "Package.json updated",
+      result.packageJsonUpdated ? "yes" : "no",
+      result.packageJsonUpdated ? "success" : "neutral",
+    ),
+    formatKeyValue(
+      dryRun ? "Install" : "Install ran",
+      installSummary,
+      hasConflicts ? "warning" : (result.installRan ? "success" : "neutral"),
+    ),
+    formatKeyValue(
+      dryRun ? "Checks" : "Checks ran",
+      checksSummary,
+      hasConflicts ? "warning" : (result.checksRan.length > 0 ? "success" : "neutral"),
+    ),
   ];
 };
 
@@ -149,10 +185,9 @@ export const runApplyCommand = async (options: ApplyCliOptions): Promise<readonl
   const shouldRunChecks = await resolveCheckDecision(options.runChecks, options.yes);
 
   const summary: string[] = [
-    `Applying anti-slop template to ${targetDir}`,
+    `${formatSectionTitle("Target")} ${formatPath(targetDir)}`,
     "",
-    "Plan summary:",
-    ...summarizePlan(plan).map((line) => `  - ${line}`),
+    ...summarizePlan(plan),
   ];
 
   const result = await executeApplyPlan(plan, {
@@ -169,7 +204,6 @@ export const runApplyCommand = async (options: ApplyCliOptions): Promise<readonl
   return [
     ...summary,
     "",
-    options.dryRun ? "Dry-run result:" : "Apply result:",
-    ...summarizeResult(result, options.dryRun, shouldInstall, shouldRunChecks).map((line) => `  - ${line}`),
+    ...summarizeResult(result, options.dryRun, shouldInstall, shouldRunChecks),
   ];
 };

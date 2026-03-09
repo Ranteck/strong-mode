@@ -1,6 +1,7 @@
 import { cancel, isCancel } from "@clack/prompts";
 import process from "node:process";
 import { inspect } from "node:util";
+import color from "picocolors";
 
 export const exitOnCancel = <T>(value: T | symbol): T => {
   if (isCancel(value)) {
@@ -58,4 +59,53 @@ const formatThrownValue = (value: unknown, depth = 0): string => {
 
 export const formatError = (error: unknown): string => {
   return formatThrownValue(error);
+};
+
+export type UiTone = "danger" | "info" | "neutral" | "success" | "warning";
+
+const toneColor = (value: string, tone: UiTone): string => {
+  if (tone === "success") {
+    return color.green(value);
+  }
+
+  if (tone === "warning") {
+    return color.yellow(value);
+  }
+
+  if (tone === "danger") {
+    return color.red(value);
+  }
+
+  if (tone === "info") {
+    return color.cyan(value);
+  }
+
+  return value;
+};
+
+export const formatIntroTitle = (): string =>
+  `${color.bold(color.cyan("slop-free"))} ${color.dim("anti-slop retrofit")}`;
+
+export const formatSectionTitle = (title: string): string =>
+  color.bold(color.cyan(title));
+
+export const formatKeyValue = (
+  label: string,
+  value: string,
+  tone: UiTone = "neutral",
+): string => `  ${color.dim(`${label}:`)} ${toneColor(value, tone)}`;
+
+export const formatPath = (value: string): string => color.cyan(value);
+
+export const formatPackageManagerOption = (packageManager: string, label: string): string => {
+  const accent =
+    packageManager === "npm"
+      ? color.red(label)
+      : packageManager === "pnpm"
+        ? color.yellow(label)
+        : packageManager === "yarn"
+          ? color.blue(label)
+          : color.magenta(label);
+
+  return `${accent} ${color.dim("package manager")}`;
 };

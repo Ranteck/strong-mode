@@ -3,10 +3,10 @@ import process from "node:process";
 import color from "picocolors";
 import { parseCliArgs } from "./args.js";
 import { runApplyCommand } from "./apply-command.js";
-import { formatError } from "./ui.js";
+import { formatError, formatIntroTitle } from "./ui.js";
 
 const run = async (): Promise<void> => {
-  intro("slop-free");
+  intro(formatIntroTitle());
 
   const options = parseCliArgs(process.argv.slice(2));
   const lines = await runApplyCommand(options);
