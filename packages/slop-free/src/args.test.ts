@@ -4,7 +4,8 @@ import { parseCliArgs } from "./args.js";
 describe("parseCliArgs", (): void => {
   it("parses apply flags", (): void => {
     const parsed = parseCliArgs([
-      "--pm", "yarn",
+      "--pm",
+      "yarn",
       "--cwd=./project",
       "--dry-run",
       "--backup",

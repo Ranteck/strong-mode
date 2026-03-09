@@ -6,8 +6,7 @@ import { runApplyCommand } from "./apply-command.js";
 
 const ANSI_PATTERN = new RegExp(String.raw`\u001B\[[0-9;]*m`, "gu");
 
-const stripAnsi = (value: string): string =>
-  value.replaceAll(ANSI_PATTERN, "");
+const stripAnsi = (value: string): string => value.replaceAll(ANSI_PATTERN, "");
 
 const createExistingProject = async (): Promise<string> => {
   const tempDir = await mkdtemp(path.join(os.tmpdir(), "slop-free-apply-command-"));
@@ -15,42 +14,50 @@ const createExistingProject = async (): Promise<string> => {
 
   await writeFile(
     path.join(tempDir, "package.json"),
-    `${JSON.stringify({
-      name: "existing-ts-app",
-      version: "1.2.3",
-      private: true,
-      type: "module",
-      scripts: {
-        build: "tsc -p tsconfig.json",
-        test: "node --test",
-        dev: "node --watch src/index.ts",
+    `${JSON.stringify(
+      {
+        name: "existing-ts-app",
+        version: "1.2.3",
+        private: true,
+        type: "module",
+        scripts: {
+          build: "tsc -p tsconfig.json",
+          test: "node --test",
+          dev: "node --watch src/index.ts",
+        },
+        dependencies: {
+          zod: "^3.24.0",
+        },
+        devDependencies: {
+          typescript: "^5.9.3",
+        },
       },
-      dependencies: {
-        zod: "^3.24.0",
-      },
-      devDependencies: {
-        typescript: "^5.9.3",
-      },
-    }, null, 2)}\n`,
+      null,
+      2,
+    )}\n`,
   );
 
   await writeFile(
     path.join(tempDir, "tsconfig.json"),
-    `${JSON.stringify({
-      compilerOptions: {
-        target: "ES2022",
-        module: "NodeNext",
-        moduleResolution: "NodeNext",
-        strict: true,
-        outDir: "dist",
+    `${JSON.stringify(
+      {
+        compilerOptions: {
+          target: "ES2022",
+          module: "NodeNext",
+          moduleResolution: "NodeNext",
+          strict: true,
+          outDir: "dist",
+        },
+        include: ["src"],
       },
-      include: ["src"],
-    }, null, 2)}\n`,
+      null,
+      2,
+    )}\n`,
   );
 
   await writeFile(
     path.join(tempDir, "src/index.ts"),
-    'export const greet = (name: string): string => `hello ${name}`;\n',
+    "export const greet = (name: string): string => `hello ${name}`;\n",
   );
 
   return tempDir;
@@ -61,7 +68,10 @@ describe("runApplyCommand", (): void => {
     const tempDir = await createExistingProject();
 
     const beforeFiles = await readdir(tempDir);
-    const beforePackageJson = await readFile(path.join(tempDir, "package.json"), "utf8");
+    const beforePackageJson = await readFile(
+      path.join(tempDir, "package.json"),
+      "utf8",
+    );
     const beforeTsconfig = await readFile(path.join(tempDir, "tsconfig.json"), "utf8");
 
     const lines = await runApplyCommand({
@@ -83,8 +93,12 @@ describe("runApplyCommand", (): void => {
     expect(plainLines).toContain("  Install: would run");
     expect(plainLines).toContain("  Checks: would run");
     expect(await readdir(tempDir)).toEqual(beforeFiles);
-    expect(await readFile(path.join(tempDir, "package.json"), "utf8")).toBe(beforePackageJson);
-    expect(await readFile(path.join(tempDir, "tsconfig.json"), "utf8")).toBe(beforeTsconfig);
+    expect(await readFile(path.join(tempDir, "package.json"), "utf8")).toBe(
+      beforePackageJson,
+    );
+    expect(await readFile(path.join(tempDir, "tsconfig.json"), "utf8")).toBe(
+      beforeTsconfig,
+    );
   });
 
   it("merges package.json and tsconfig.json for an existing project", async (): Promise<void> => {
@@ -103,7 +117,9 @@ describe("runApplyCommand", (): void => {
     });
     const plainLines = lines.map(stripAnsi);
 
-    const packageJson = JSON.parse(await readFile(path.join(tempDir, "package.json"), "utf8")) as {
+    const packageJson = JSON.parse(
+      await readFile(path.join(tempDir, "package.json"), "utf8"),
+    ) as {
       scripts: Record<string, string>;
       dependencies: Record<string, string>;
       devDependencies: Record<string, string>;
@@ -143,8 +159,12 @@ describe("runApplyCommand", (): void => {
     expect(parsedTsconfig.include).toEqual(["src", "src/**/*"]);
     expect(parsedTsconfig.exclude).toContain("dist");
 
-    expect(topLevelFiles.some((file) => file.startsWith("package.json.slop-free-backup."))).toBe(true);
-    expect(topLevelFiles.some((file) => file.startsWith("tsconfig.json.slop-free-backup."))).toBe(true);
+    expect(
+      topLevelFiles.some((file) => file.startsWith("package.json.slop-free-backup.")),
+    ).toBe(true);
+    expect(
+      topLevelFiles.some((file) => file.startsWith("tsconfig.json.slop-free-backup.")),
+    ).toBe(true);
     expect(topLevelFiles).toContain("eslint.config.mjs");
     expect(topLevelFiles).toContain("vitest.config.ts");
   });

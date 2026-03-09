@@ -1,4 +1,8 @@
-import type { PackageJsonChangeSummary, PackageJsonLike, PackageJsonPlan } from "./types.js";
+import type {
+  PackageJsonChangeSummary,
+  PackageJsonLike,
+  PackageJsonPlan,
+} from "./types.js";
 
 const KNOWN_SCRIPT_KEYS: readonly string[] = [
   "build",
@@ -20,12 +24,16 @@ const KNOWN_SCRIPT_KEYS: readonly string[] = [
 ];
 
 const clonePackageJson = (value: PackageJsonLike | undefined): PackageJsonLike =>
-  value === undefined ? {} : JSON.parse(JSON.stringify(value)) as PackageJsonLike;
+  value === undefined ? {} : (JSON.parse(JSON.stringify(value)) as PackageJsonLike);
 
-const normalizeDeps = (deps: Record<string, string> | undefined): Record<string, string> =>
-  deps === undefined ? {} : { ...deps };
+const normalizeDeps = (
+  deps: Record<string, string> | undefined,
+): Record<string, string> => (deps === undefined ? {} : { ...deps });
 
-const mergePrepareScript = (existingValue: string | undefined, templateValue: string): string => {
+const mergePrepareScript = (
+  existingValue: string | undefined,
+  templateValue: string,
+): string => {
   if (existingValue === undefined || existingValue.length === 0) {
     return templateValue;
   }
@@ -147,7 +155,10 @@ export const buildPackageJsonPlan = (
   const mergedScripts = mergeScripts(current?.scripts, templatePackageJson.scripts);
   next.scripts = mergedScripts.scripts;
 
-  const mergedDependencies = mergeDependencies(current?.dependencies, templatePackageJson.dependencies);
+  const mergedDependencies = mergeDependencies(
+    current?.dependencies,
+    templatePackageJson.dependencies,
+  );
   const mergedDevDependencies = mergeDependencies(
     current?.devDependencies,
     templatePackageJson.devDependencies,

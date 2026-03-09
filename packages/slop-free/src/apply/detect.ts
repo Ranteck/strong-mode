@@ -26,12 +26,16 @@ const readJson = async <T extends object>(filePath: string): Promise<T> => {
     throw new Error(`Invalid JSON in ${filePath}.`, { cause: error });
   }
   if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed)) {
-    throw new Error(`Expected a JSON object in ${filePath}, got ${Array.isArray(parsed) ? "array" : String(parsed)}.`);
+    throw new Error(
+      `Expected a JSON object in ${filePath}, got ${Array.isArray(parsed) ? "array" : String(parsed)}.`,
+    );
   }
   return parsed as T;
 };
 
-export const readJsonIfExists = async <T extends object>(filePath: string): Promise<T | undefined> => {
+export const readJsonIfExists = async <T extends object>(
+  filePath: string,
+): Promise<T | undefined> => {
   const source = await readTextIfExists(filePath);
   if (source === undefined) {
     return undefined;
@@ -44,7 +48,9 @@ export const readJsonIfExists = async <T extends object>(filePath: string): Prom
     throw new Error(`Invalid JSON in ${filePath}.`, { cause: error });
   }
   if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed)) {
-    throw new Error(`Expected a JSON object in ${filePath}, got ${Array.isArray(parsed) ? "array" : String(parsed)}.`);
+    throw new Error(
+      `Expected a JSON object in ${filePath}, got ${Array.isArray(parsed) ? "array" : String(parsed)}.`,
+    );
   }
   return parsed as T;
 };
@@ -63,21 +69,32 @@ export const detectApplyInput = async (
       : fallbackProjectName;
 
   const templatePackageJsonPath = path.join(templateDir, "package.json");
-  const templatePackageJsonRaw = await readJson<PackageJsonLike>(templatePackageJsonPath);
-  const renderedTemplatePackageJson = renderTemplateContent(JSON.stringify(templatePackageJsonRaw), projectName);
+  const templatePackageJsonRaw = await readJson<PackageJsonLike>(
+    templatePackageJsonPath,
+  );
+  const renderedTemplatePackageJson = renderTemplateContent(
+    JSON.stringify(templatePackageJsonRaw),
+    projectName,
+  );
   const templatePackageJson: PackageJsonLike = ((): PackageJsonLike => {
     try {
       return JSON.parse(renderedTemplatePackageJson) as PackageJsonLike;
     } catch (error: unknown) {
-      throw new Error(`Invalid rendered JSON from template package file: ${templatePackageJsonPath}.`, {
-        cause: error,
-      });
+      throw new Error(
+        `Invalid rendered JSON from template package file: ${templatePackageJsonPath}.`,
+        {
+          cause: error,
+        },
+      );
     }
   })();
 
   const managedFiles = await Promise.all(
     MANAGED_TEMPLATE_FILES.map(async (managedTemplateFile): Promise<ManagedFile> => {
-      const sourceTemplatePath = path.join(templateDir, managedTemplateFile.sourceRelativePath);
+      const sourceTemplatePath = path.join(
+        templateDir,
+        managedTemplateFile.sourceRelativePath,
+      );
       let sourceContent: string;
       try {
         sourceContent = await readFile(sourceTemplatePath, "utf8");

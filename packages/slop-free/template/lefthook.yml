@@ -2,8 +2,8 @@ pre-commit:
   parallel: true
   commands:
     format-check:
-      run: npm run format:check
+      run: ./scripts/run-package-manager.sh run format:check
     lint:
-      run: npm run lint
+      run: ./scripts/run-package-manager.sh run lint
     typecheck:
-      run: npm run typecheck
+      run: ./scripts/run-package-manager.sh run typecheck

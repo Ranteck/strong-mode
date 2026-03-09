@@ -21,11 +21,15 @@ export const ensureParentDirectory = async (filePath: string): Promise<void> => 
   try {
     await mkdir(path.dirname(filePath), { recursive: true });
   } catch (error: unknown) {
-    throw new Error(`Failed to create parent directory for ${filePath}.`, { cause: error });
+    throw new Error(`Failed to create parent directory for ${filePath}.`, {
+      cause: error,
+    });
   }
 };
 
-export const readTextIfExists = async (filePath: string): Promise<string | undefined> => {
+export const readTextIfExists = async (
+  filePath: string,
+): Promise<string | undefined> => {
   try {
     return await readFile(filePath, "utf8");
   } catch (error: unknown) {
@@ -37,7 +41,10 @@ export const readTextIfExists = async (filePath: string): Promise<string | undef
   }
 };
 
-export const writeTextFile = async (filePath: string, content: string): Promise<void> => {
+export const writeTextFile = async (
+  filePath: string,
+  content: string,
+): Promise<void> => {
   await ensureParentDirectory(filePath);
   try {
     await writeFile(filePath, content, "utf8");

@@ -26,7 +26,11 @@ const formatThrownValue = (value: unknown, depth = 0): string => {
     return value;
   }
 
-  if (typeof value === "number" || typeof value === "boolean" || typeof value === "bigint") {
+  if (
+    typeof value === "number" ||
+    typeof value === "boolean" ||
+    typeof value === "bigint"
+  ) {
     return String(value);
   }
 
@@ -65,10 +69,10 @@ export type UiTone = "danger" | "info" | "neutral" | "success" | "warning";
 
 const supportsRichColor =
   color.isColorSupported &&
-  (
-    (typeof process.env.COLORTERM === "string" && /(truecolor|24bit)/iu.test(process.env.COLORTERM)) ||
-    (typeof process.env.TERM === "string" && /(256color|direct)/iu.test(process.env.TERM))
-  );
+  ((typeof process.env.COLORTERM === "string" &&
+    /(truecolor|24bit)/iu.test(process.env.COLORTERM)) ||
+    (typeof process.env.TERM === "string" &&
+      /(256color|direct)/iu.test(process.env.TERM)));
 
 const applyAnsiColor = (
   value: string,
@@ -77,13 +81,20 @@ const applyAnsiColor = (
 ): string => (supportsRichColor ? `${open}${value}\x1b[39m` : fallback(value));
 
 const palette = {
-  accent: (value: string): string => applyAnsiColor(value, "\x1b[38;2;245;184;90m", color.yellow),
-  brand: (value: string): string => applyAnsiColor(value, "\x1b[38;2;95;215;198m", color.cyan),
-  danger: (value: string): string => applyAnsiColor(value, "\x1b[38;2;255;122;107m", color.red),
-  muted: (value: string): string => applyAnsiColor(value, "\x1b[38;2;148;163;184m", color.gray),
-  success: (value: string): string => applyAnsiColor(value, "\x1b[38;2;115;217;159m", color.green),
-  text: (value: string): string => applyAnsiColor(value, "\x1b[38;2;230;238;243m", color.whiteBright),
-  warning: (value: string): string => applyAnsiColor(value, "\x1b[38;2;255;175;95m", color.yellowBright),
+  accent: (value: string): string =>
+    applyAnsiColor(value, "\x1b[38;2;245;184;90m", color.yellow),
+  brand: (value: string): string =>
+    applyAnsiColor(value, "\x1b[38;2;95;215;198m", color.cyan),
+  danger: (value: string): string =>
+    applyAnsiColor(value, "\x1b[38;2;255;122;107m", color.red),
+  muted: (value: string): string =>
+    applyAnsiColor(value, "\x1b[38;2;148;163;184m", color.gray),
+  success: (value: string): string =>
+    applyAnsiColor(value, "\x1b[38;2;115;217;159m", color.green),
+  text: (value: string): string =>
+    applyAnsiColor(value, "\x1b[38;2;230;238;243m", color.whiteBright),
+  warning: (value: string): string =>
+    applyAnsiColor(value, "\x1b[38;2;255;175;95m", color.yellowBright),
 } as const;
 
 const toneColor = (value: string, tone: UiTone): string => {
@@ -120,12 +131,15 @@ export const formatKeyValue = (
 
 export const formatMuted = (value: string): string => palette.muted(value);
 
-export const formatToneText = (value: string, tone: UiTone): string => toneColor(value, tone);
+export const formatToneText = (value: string, tone: UiTone): string =>
+  toneColor(value, tone);
 
 export const formatPath = (value: string): string => palette.brand(value);
 
-export const formatPackageManagerOption = (_packageManager: string, label: string): string =>
-  `${palette.text(label)} ${palette.muted("package manager")}`;
+export const formatPackageManagerOption = (
+  _packageManager: string,
+  label: string,
+): string => `${palette.text(label)} ${palette.muted("package manager")}`;
 
 export const formatRecommendedAction = (value: string): string =>
   `${palette.accent(value)} ${palette.muted("(recommended)")}`;

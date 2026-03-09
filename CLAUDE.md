@@ -20,6 +20,7 @@ This is an npm workspace monorepo with two key packages:
 ## Common Commands
 
 ### Development workflow
+
 ```bash
 npm install                     # Install all workspace dependencies
 npm run sync:template           # Manually sync template (auto-runs before build)
@@ -28,19 +29,23 @@ npm run build                   # Build the CLI package
 ```
 
 ### Testing locally without publishing
+
 ```bash
 npm run build -w slop-free
 node packages/slop-free/dist/cli.js --dry-run --yes
 ```
 
 ### Running a single test file
+
 ```bash
 npx vitest run src/args.test.ts -w slop-free
 npx vitest run src/apply/patchers.test.ts -w slop-free
 ```
 
 ### Generated project commands
+
 Scripts added to target projects by `slop-free`:
+
 - `check`: Fast gate (typecheck + lint + format:check + dead-code)
 - `quality`: Full gate (check + test:coverage + deps:graph + deps:cycles + audit)
 - `test`: Run tests with vitest
@@ -91,6 +96,7 @@ Generated projects enforce extreme type safety:
 **tsconfig.json flags**: `noUncheckedIndexedAccess`, `exactOptionalPropertyTypes`, `noImplicitOverride`, `skipLibCheck: false`
 
 **ESLint anti-escape rules** (see `packages/scaffold-ultra/template/eslint.config.mjs`):
+
 - `no-explicit-any`, `no-unsafe-*` as errors
 - `ban-ts-comment` with 10-char minimum descriptions
 - No chained assertions (`value as unknown as T`)

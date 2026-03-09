@@ -48,8 +48,8 @@ export default tseslint.config(
           allowNullableBoolean: false,
           allowNullableString: false,
           allowNullableNumber: false,
-          allowAny: false
-        }
+          allowAny: false,
+        },
       ],
       "@typescript-eslint/explicit-function-return-type": "error",
       "@typescript-eslint/explicit-module-boundary-types": "error",
@@ -57,8 +57,8 @@ export default tseslint.config(
         "error",
         {
           assertionStyle: "as",
-          objectLiteralTypeAssertions: "never"
-        }
+          objectLiteralTypeAssertions: "never",
+        },
       ],
       "@typescript-eslint/ban-ts-comment": [
         "error",
@@ -67,8 +67,8 @@ export default tseslint.config(
           "ts-expect-error": "allow-with-description",
           "ts-nocheck": true,
           "ts-check": false,
-          minimumDescriptionLength: 10
-        }
+          minimumDescriptionLength: 10,
+        },
       ],
       "@typescript-eslint/no-unused-vars": "off",
       "unused-imports/no-unused-imports": "error",
@@ -77,49 +77,49 @@ export default tseslint.config(
         {
           varsIgnorePattern: "^_",
           argsIgnorePattern: "^_",
-          caughtErrorsIgnorePattern: "^_"
-        }
+          caughtErrorsIgnorePattern: "^_",
+        },
       ],
       "no-restricted-properties": [
         "error",
         {
           object: "process",
           property: "env",
-          message: "Use src/env.ts typed env instead of process.env directly."
-        }
+          message: "Use src/env.ts typed env instead of process.env directly.",
+        },
       ],
       "no-restricted-syntax": [
         "error",
         {
           selector: "TSAsExpression[expression.type='TSAsExpression']",
-          message: "Do not chain type assertions (for example: value as unknown as T)."
-        }
+          message: "Do not chain type assertions (for example: value as unknown as T).",
+        },
       ],
       "eslint-comments/disable-enable-pair": [
         "error",
         {
-          allowWholeFile: false
-        }
+          allowWholeFile: false,
+        },
       ],
       "eslint-comments/no-unused-disable": "error",
       "eslint-comments/require-description": "error",
-      "complexity": [
+      complexity: [
         "error",
         {
-          max: 10
-        }
+          max: 10,
+        },
       ],
       "max-depth": [
         "error",
         {
-          max: 3
-        }
+          max: 3,
+        },
       ],
       "max-params": [
         "error",
         {
-          max: 4
-        }
+          max: 4,
+        },
       ],
       "perfectionist/sort-imports": [
         "error",
@@ -133,54 +133,42 @@ export default tseslint.config(
             "parent",
             "sibling",
             "index",
-            "type"
-          ]
-        }
+            "type",
+          ],
+        },
       ],
       "no-console": "error",
       "no-debugger": "error",
       "no-alert": "error",
       "no-var": "error",
       "prefer-const": "error",
-      "eqeqeq": [
-        "error",
-        "always"
-      ],
-      "curly": [
-        "error",
-        "all"
-      ],
+      eqeqeq: ["error", "always"],
+      curly: ["error", "all"],
       "unicorn/prevent-abbreviations": "off",
       "unicorn/no-null": "off",
       "unicorn/filename-case": [
         "error",
         {
-          case: "kebabCase"
-        }
-      ]
-    }
+          case: "kebabCase",
+        },
+      ],
+    },
   },
   {
-    files: [
-      "src/env.ts"
-    ],
+    files: ["src/env.ts"],
     rules: {
-      "no-restricted-properties": "off"
-    }
+      "no-restricted-properties": "off",
+    },
   },
   {
-    files: [
-      "**/*.test.ts",
-      "**/*.spec.ts",
-      "tests/**/*"
-    ],
+    files: ["**/*.test.ts", "**/*.spec.ts", "tests/**/*"],
     rules: {
       "@typescript-eslint/no-explicit-any": "off",
       "@typescript-eslint/no-unsafe-assignment": "off",
       "@typescript-eslint/no-unsafe-member-access": "off",
       "@typescript-eslint/explicit-function-return-type": "off",
-      "no-console": "off"
-    }
+      "no-console": "off",
+    },
   },
   {
     ignores: [
@@ -188,7 +176,7 @@ export default tseslint.config(
       "coverage/**",
       "node_modules/**",
       "*.config.js",
-      "*.config.mjs"
-    ]
-  }
+      "*.config.mjs",
+    ],
+  },
 );

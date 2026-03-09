@@ -126,7 +126,12 @@ export const promptFileConflictResolution = async (
     });
 
     const value = exitOnCancel(decision);
-    if (value === "conflict" || value === "merge" || value === "overwrite" || value === "skip") {
+    if (
+      value === "conflict" ||
+      value === "merge" ||
+      value === "overwrite" ||
+      value === "skip"
+    ) {
       return value;
     }
 

@@ -16,7 +16,7 @@ export default tseslint.config(
       "@typescript-eslint/explicit-function-return-type": "error",
       "@typescript-eslint/no-floating-promises": "error",
       "@typescript-eslint/consistent-type-imports": "error",
-      "no-console": "off"
+      "no-console": "off",
     },
   },
   {
@@ -26,10 +26,6 @@ export default tseslint.config(
     },
   },
   {
-    ignores: [
-      "dist/**",
-      "node_modules/**",
-      "../**/template/**",
-    ],
+    ignores: ["dist/**", "node_modules/**", "../**/template/**"],
   },
 );

@@ -90,12 +90,16 @@ const parseApplyOptions = (argv: readonly string[]): ApplyCliOptions => {
     }
 
     if (token.startsWith("--pm=")) {
-      options.packageManager = parsePackageManager(parseFlagValue("--pm", token.slice("--pm=".length)));
+      options.packageManager = parsePackageManager(
+        parseFlagValue("--pm", token.slice("--pm=".length)),
+      );
       continue;
     }
 
     if (token === "--pm") {
-      options.packageManager = parsePackageManager(parseFlagValue("--pm", argv[index + 1]));
+      options.packageManager = parsePackageManager(
+        parseFlagValue("--pm", argv[index + 1]),
+      );
       index += 1;
       continue;
     }
@@ -121,7 +125,9 @@ const parseApplyOptions = (argv: readonly string[]): ApplyCliOptions => {
     backup: options.backup,
     force: options.force,
     ...(options.cwd === undefined ? {} : { cwd: options.cwd }),
-    ...(options.packageManager === undefined ? {} : { packageManager: options.packageManager }),
+    ...(options.packageManager === undefined
+      ? {}
+      : { packageManager: options.packageManager }),
     ...(options.install === undefined ? {} : { install: options.install }),
     ...(options.runChecks === undefined ? {} : { runChecks: options.runChecks }),
   } as const satisfies ApplyCliOptions;

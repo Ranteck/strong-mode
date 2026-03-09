@@ -1,8 +1,7 @@
 const isPlainObject = (value: unknown): value is Record<string, unknown> =>
   typeof value === "object" && value !== null && !Array.isArray(value);
 
-const cloneJsonValue = <T>(value: T): T =>
-  JSON.parse(JSON.stringify(value)) as T;
+const cloneJsonValue = <T>(value: T): T => JSON.parse(JSON.stringify(value)) as T;
 
 const mergeArrayValues = (
   current: readonly unknown[],
@@ -83,11 +82,11 @@ const mergeTsconfig = (
   return `${JSON.stringify(merged, null, 2)}\n`;
 };
 
-const mergeGitignore = (
-  existingContent: string,
-  incomingContent: string,
-): string => {
-  const lines = [...existingContent.split(/\r?\n/u), ...incomingContent.split(/\r?\n/u)];
+const mergeGitignore = (existingContent: string, incomingContent: string): string => {
+  const lines = [
+    ...existingContent.split(/\r?\n/u),
+    ...incomingContent.split(/\r?\n/u),
+  ];
   const seen = new Set<string>();
   const merged: string[] = [];
 

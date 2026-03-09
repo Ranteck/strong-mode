@@ -3,9 +3,16 @@ import { buildPackageJsonPlan } from "./patchers.js";
 import type { ApplyPlan } from "./types.js";
 import type { ApplyDetection } from "./detect.js";
 
-export const buildApplyPlan = (targetDir: string, detection: ApplyDetection): ApplyPlan => {
-  const filesToCreate = detection.managedFiles.filter((managedFile) => !managedFile.exists);
-  const conflictingFiles = detection.managedFiles.filter((managedFile) => managedFile.exists);
+export const buildApplyPlan = (
+  targetDir: string,
+  detection: ApplyDetection,
+): ApplyPlan => {
+  const filesToCreate = detection.managedFiles.filter(
+    (managedFile) => !managedFile.exists,
+  );
+  const conflictingFiles = detection.managedFiles.filter(
+    (managedFile) => managedFile.exists,
+  );
 
   const packageJsonPlan = buildPackageJsonPlan(
     path.join(targetDir, "package.json"),

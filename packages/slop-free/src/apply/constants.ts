@@ -33,6 +33,10 @@ export const MANAGED_TEMPLATE_FILES: readonly ManagedTemplateFile[] = [
     targetRelativePath: "lefthook.yml",
   },
   {
+    sourceRelativePath: "scripts/run-package-manager.sh",
+    targetRelativePath: "scripts/run-package-manager.sh",
+  },
+  {
     sourceRelativePath: "gitignore",
     targetRelativePath: ".gitignore",
   },

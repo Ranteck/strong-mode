@@ -7,7 +7,11 @@ import { executeApplyPlan } from "./apply/execute.js";
 import { buildApplyPlan } from "./apply/plan.js";
 import { detectPackageManager, packageManagerLabel } from "./package-manager.js";
 import { resolveTemplateDir } from "./template.js";
-import { PACKAGE_MANAGERS, type ApplyCliOptions, type PackageManager } from "./types.js";
+import {
+  PACKAGE_MANAGERS,
+  type ApplyCliOptions,
+  type PackageManager,
+} from "./types.js";
 import {
   exitOnCancel,
   formatKeyValue,
@@ -26,11 +30,14 @@ const choosePackageManager = async (
 
   const selected = await select({
     message: "Pick a package manager for install/check commands",
-      initialValue,
-      options: PACKAGE_MANAGERS.map((packageManager) => ({
-        value: packageManager,
-        label: formatPackageManagerOption(packageManager, packageManagerLabel(packageManager)),
-      })),
+    initialValue,
+    options: PACKAGE_MANAGERS.map((packageManager) => ({
+      value: packageManager,
+      label: formatPackageManagerOption(
+        packageManager,
+        packageManagerLabel(packageManager),
+      ),
+    })),
   });
 
   return exitOnCancel(selected);
@@ -82,7 +89,11 @@ const summarizePlan = (plan: ReturnType<typeof buildApplyPlan>): readonly string
   formatSectionTitle("Plan Summary"),
   formatKeyValue("Project name", plan.projectName, "info"),
   formatKeyValue("Files to create", String(plan.filesToCreate.length), "info"),
-  formatKeyValue("Files with conflicts", String(plan.conflictingFiles.length), "warning"),
+  formatKeyValue(
+    "Files with conflicts",
+    String(plan.conflictingFiles.length),
+    "warning",
+  ),
   formatKeyValue(
     "Package.json changed",
     plan.packageJsonPlan.summary.changed ? "yes" : "no",
@@ -96,7 +107,9 @@ const summarizePlan = (plan: ReturnType<typeof buildApplyPlan>): readonly string
   formatKeyValue(
     "Dev dependencies to add",
     String(plan.packageJsonPlan.summary.addedDevDependencies.length),
-    plan.packageJsonPlan.summary.addedDevDependencies.length > 0 ? "warning" : "neutral",
+    plan.packageJsonPlan.summary.addedDevDependencies.length > 0
+      ? "warning"
+      : "neutral",
   ),
 ];
 
@@ -110,21 +123,29 @@ const summarizeResult = (
 
   const installSummary =
     hasConflicts && shouldInstall
-      ? (dryRun
+      ? dryRun
         ? "would skip due to unresolved conflicts"
-        : "skipped due to unresolved conflicts")
-      : (dryRun
-        ? (shouldInstall ? "would run" : "skipped")
-        : (result.installRan ? "yes" : "no"));
+        : "skipped due to unresolved conflicts"
+      : dryRun
+        ? shouldInstall
+          ? "would run"
+          : "skipped"
+        : result.installRan
+          ? "yes"
+          : "no";
 
   const checksSummary =
     hasConflicts && shouldRunChecks
-      ? (dryRun
+      ? dryRun
         ? "would skip due to unresolved conflicts"
-        : "skipped due to unresolved conflicts")
-      : (dryRun
-        ? (shouldRunChecks ? "would run" : "skipped")
-        : (result.checksRan.length > 0 ? result.checksRan.join(", ") : "none"));
+        : "skipped due to unresolved conflicts"
+      : dryRun
+        ? shouldRunChecks
+          ? "would run"
+          : "skipped"
+        : result.checksRan.length > 0
+          ? result.checksRan.join(", ")
+          : "none";
 
   return [
     formatSectionTitle(dryRun ? "Dry-run Result" : "Apply Result"),
@@ -153,17 +174,19 @@ const summarizeResult = (
     formatKeyValue(
       dryRun ? "Install" : "Install ran",
       installSummary,
-      hasConflicts ? "warning" : (result.installRan ? "success" : "neutral"),
+      hasConflicts ? "warning" : result.installRan ? "success" : "neutral",
     ),
     formatKeyValue(
       dryRun ? "Checks" : "Checks ran",
       checksSummary,
-      hasConflicts ? "warning" : (result.checksRan.length > 0 ? "success" : "neutral"),
+      hasConflicts ? "warning" : result.checksRan.length > 0 ? "success" : "neutral",
     ),
   ];
 };
 
-export const runApplyCommand = async (options: ApplyCliOptions): Promise<readonly string[]> => {
+export const runApplyCommand = async (
+  options: ApplyCliOptions,
+): Promise<readonly string[]> => {
   const targetDir = path.resolve(process.cwd(), options.cwd ?? ".");
   const targetStat = await stat(targetDir).catch((): undefined => undefined);
   if (targetStat === undefined) {

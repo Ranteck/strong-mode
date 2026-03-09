@@ -33,8 +33,7 @@ const writeManagedFile = async (
   await writeTextFile(path.join(targetDir, relativePath), content);
 };
 
-const stripTrailingNewlines = (content: string): string =>
-  content.replace(/\n+$/u, "");
+const stripTrailingNewlines = (content: string): string => content.replace(/\n+$/u, "");
 
 const buildConflictFileContent = (
   existingContent: string,
@@ -67,7 +66,9 @@ const applyPackageJson = async (
 
   let decision: ConflictResolution;
   if (currentSource === undefined) {
-    log.warn("No package.json found in target directory — will create one from template.");
+    log.warn(
+      "No package.json found in target directory — will create one from template.",
+    );
     decision = "overwrite";
   } else {
     decision = await promptFileConflictResolution(
@@ -140,7 +141,9 @@ export const executeApplyPlan = async (
       managedFile.content,
       options.yes,
       options.force,
-      isMergeableManagedFile(managedFile.relativePath) ? "mergeable-file" : "managed-file",
+      isMergeableManagedFile(managedFile.relativePath)
+        ? "mergeable-file"
+        : "managed-file",
     );
 
     if (decision === "skip") {
@@ -150,10 +153,14 @@ export const executeApplyPlan = async (
 
     const nextContent =
       decision === "merge"
-        ? mergeManagedFileContent(managedFile.relativePath, existing, managedFile.content)
-        : (decision === "conflict"
+        ? mergeManagedFileContent(
+            managedFile.relativePath,
+            existing,
+            managedFile.content,
+          )
+        : decision === "conflict"
           ? buildConflictFileContent(existing, managedFile.content)
-          : managedFile.content);
+          : managedFile.content;
 
     if (decision === "merge" && nextContent === undefined) {
       if (options.backup && !options.dryRun) {
@@ -176,7 +183,9 @@ export const executeApplyPlan = async (
     }
 
     if (nextContent === undefined) {
-      throw new Error(`Merge strategy did not produce content for ${managedFile.relativePath}.`);
+      throw new Error(
+        `Merge strategy did not produce content for ${managedFile.relativePath}.`,
+      );
     }
 
     if (options.backup && !options.dryRun) {
@@ -206,12 +215,7 @@ export const executeApplyPlan = async (
     const installArgs = installCommand();
     try {
       // runCommand is synchronous (spawnSync) — if refactored to async, add await here
-      runCommand(
-        options.packageManager,
-        installArgs,
-        options.targetDir,
-        "inherit",
-      );
+      runCommand(options.packageManager, installArgs, options.targetDir, "inherit");
       installRan = true;
     } catch (error: unknown) {
       throw new Error(
@@ -223,19 +227,22 @@ export const executeApplyPlan = async (
 
   let checksRan: readonly string[] = [];
   if (options.shouldRunChecks && conflictedFiles.length === 0 && !options.dryRun) {
-    const packageJsonForChecks =
-      packageJsonUpdated
-        ? plan.packageJsonPlan.next
-        : (plan.packageJsonPlan.current ?? plan.packageJsonPlan.next);
+    const packageJsonForChecks = packageJsonUpdated
+      ? plan.packageJsonPlan.next
+      : (plan.packageJsonPlan.current ?? plan.packageJsonPlan.next);
     try {
       // runCommand is synchronous (spawnSync) — if refactored to async, add await here
-      checksRan = runPostApplyChecks(options.packageManager, options.targetDir, packageJsonForChecks);
+      checksRan = runPostApplyChecks(
+        options.packageManager,
+        options.targetDir,
+        packageJsonForChecks,
+      );
     } catch (error: unknown) {
       throw new Error(
         `Post-apply check failed (apply already wrote project changes — ` +
-        `created: ${String(createdFiles.length)}, overwritten: ${String(overwrittenFiles.length)}, ` +
-        `package.json updated: ${packageJsonUpdated ? "yes" : "no"}). ` +
-        `Review changes then fix the check failure.`,
+          `created: ${String(createdFiles.length)}, overwritten: ${String(overwrittenFiles.length)}, ` +
+          `package.json updated: ${packageJsonUpdated ? "yes" : "no"}). ` +
+          `Review changes then fix the check failure.`,
         { cause: error },
       );
     }

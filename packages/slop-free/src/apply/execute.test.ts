@@ -81,7 +81,10 @@ describe("executeApplyPlan", (): void => {
       shouldRunChecks: true,
     });
 
-    const eslintConfig = await readFile(path.join(tempDir, "eslint.config.mjs"), "utf8");
+    const eslintConfig = await readFile(
+      path.join(tempDir, "eslint.config.mjs"),
+      "utf8",
+    );
 
     expect(result.conflictedFiles).toEqual(["eslint.config.mjs"]);
     expect(result.mergedFiles).toEqual([]);

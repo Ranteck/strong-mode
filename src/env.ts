@@ -18,7 +18,7 @@ const parseEnv = (): Env => {
   const parsed = EnvSchema.safeParse(externalInput);
   if (!parsed.success) {
     const details = parsed.error.issues
-      .map((issue) => `${issue.path.join(".") || "env"}: ${issue.message}`)
+      .map((issue) => `${issue.path.join(".").replace(/^$/, "env")}: ${issue.message}`)
       .join("\n");
 
     process.stderr.write(`Invalid environment configuration:\n${details}\n`);

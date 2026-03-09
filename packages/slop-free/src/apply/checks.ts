@@ -21,7 +21,8 @@ export const runPostApplyChecks = (
     try {
       runCommand(packageManager, runScriptCommand(script), targetDir, "inherit");
     } catch (error: unknown) {
-      const isSpawnError = error instanceof Error && error.message.startsWith("Failed to start");
+      const isSpawnError =
+        error instanceof Error && error.message.startsWith("Failed to start");
       const hint = isSpawnError
         ? `Check '${script}' could not start — is ${packageManager} installed and on PATH?`
         : `Check '${script}' failed — see output above`;

@@ -11,18 +11,22 @@ Adds strict TypeScript, ESLint, formatting, and quality gates to your existing p
 ## What it installs
 
 **TypeScript** (`tsconfig.json`):
+
 - `noUncheckedIndexedAccess`, `exactOptionalPropertyTypes`, `noImplicitOverride`
 - `skipLibCheck: false`
 
 **ESLint** (`eslint.config.mjs`):
+
 - No `any`, no `ts-expect-error` without a 10-char description, no chained assertions (`as unknown as T`)
 - `process.env` access restricted to `src/env.ts`
 - Complexity limits: cyclomatic ≤ 10, depth ≤ 3, params ≤ 4
 
 **Runtime validation** (`src/env.ts`):
+
 - Zod-based env validation template — all `process.env` access goes through here
 
 **Quality gates** (npm scripts):
+
 - `check`: typecheck + lint + format check + dead code (fast, pre-commit)
 - `quality`: check + tests + coverage + dep graph + dep cycles + audit (full)
 
@@ -55,6 +59,7 @@ npm run build           # build CLI
 ```
 
 Test locally:
+
 ```bash
 npm run build -w slop-free
 node packages/slop-free/dist/cli.js --dry-run --yes
