@@ -1,6 +1,6 @@
 {
   "name": "strong-mode",
-  "version": "0.2.1",
+  "version": "0.2.2",
   "description": "A CLI that makes TypeScript vibe coding safer with strict defaults and quality guardrails.",
   "license": "MIT",
   "repository": {
