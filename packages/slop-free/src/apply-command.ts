@@ -90,18 +90,37 @@ const summarizeResult = (
   dryRun: boolean,
   shouldInstall: boolean,
   shouldRunChecks: boolean,
-): readonly string[] => [
-  `Created files: ${String(result.createdFiles.length)}`,
-  `Overwritten files: ${String(result.overwrittenFiles.length)}`,
-  `Skipped files: ${String(result.skippedFiles.length)}`,
-  `package.json updated: ${result.packageJsonUpdated ? "yes" : "no"}`,
-  dryRun
-    ? `Install: ${shouldInstall ? "would run" : "skipped"}`
-    : `Install ran: ${result.installRan ? "yes" : "no"}`,
-  dryRun
-    ? `Checks: ${shouldRunChecks ? "would run" : "skipped"}`
-    : `Checks ran: ${result.checksRan.length > 0 ? result.checksRan.join(", ") : "none"}`,
-];
+): readonly string[] => {
+  const hasConflicts = result.conflictedFiles.length > 0;
+
+  const installSummary =
+    hasConflicts && shouldInstall
+      ? (dryRun
+        ? "would skip due to unresolved conflicts"
+        : "skipped due to unresolved conflicts")
+      : (dryRun
+        ? (shouldInstall ? "would run" : "skipped")
+        : (result.installRan ? "yes" : "no"));
+
+  const checksSummary =
+    hasConflicts && shouldRunChecks
+      ? (dryRun
+        ? "would skip due to unresolved conflicts"
+        : "skipped due to unresolved conflicts")
+      : (dryRun
+        ? (shouldRunChecks ? "would run" : "skipped")
+        : (result.checksRan.length > 0 ? result.checksRan.join(", ") : "none"));
+
+  return [
+    `Created files: ${String(result.createdFiles.length)}`,
+    `Conflicted files: ${String(result.conflictedFiles.length)}`,
+    `Overwritten files: ${String(result.overwrittenFiles.length)}`,
+    `Skipped files: ${String(result.skippedFiles.length)}`,
+    `package.json updated: ${result.packageJsonUpdated ? "yes" : "no"}`,
+    dryRun ? `Install: ${installSummary}` : `Install ran: ${installSummary}`,
+    dryRun ? `Checks: ${checksSummary}` : `Checks ran: ${checksSummary}`,
+  ];
+};
 
 export const runApplyCommand = async (options: ApplyCliOptions): Promise<readonly string[]> => {
   const targetDir = path.resolve(process.cwd(), options.cwd ?? ".");

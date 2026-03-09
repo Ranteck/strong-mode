@@ -32,8 +32,8 @@ Adds strict TypeScript, ESLint, formatting, and quality gates to your existing p
 
 ```
 --dry-run        Preview changes without writing files
---yes            Skip all prompts, use defaults
---backup         Back up existing files before overwriting
+--yes            Skip prompts; conflicting files get Git-style conflict markers
+--backup         Back up existing files before overwriting or writing conflicts
 --force          Overwrite conflicts without prompting
 --no-install     Skip dependency installation
 --no-check       Skip post-apply typecheck/lint/test run
@@ -43,7 +43,7 @@ Adds strict TypeScript, ESLint, formatting, and quality gates to your existing p
 
 ## How it works
 
-`slop-free` compares 9 config files from its template against your project. New files are created. Conflicts prompt for overwrite/skip/diff. Your `package.json` is merged — dependencies and scripts are added, your existing fields are preserved.
+`slop-free` compares 9 config files from its template against your project. New files are created. Conflicts in managed files prompt for Git-style conflict markers, overwrite, skip, or a diff preview. With `--yes`, managed-file conflicts write markers by default; with `--force`, they overwrite. Your `package.json` is merged structurally — dependencies and scripts are added, your existing fields are preserved.
 
 ## Contributing
 

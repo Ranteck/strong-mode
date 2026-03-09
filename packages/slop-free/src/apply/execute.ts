@@ -32,6 +32,22 @@ const writeManagedFile = async (
   await writeTextFile(path.join(targetDir, relativePath), content);
 };
 
+const stripTrailingNewlines = (content: string): string =>
+  content.replace(/\n+$/u, "");
+
+const buildConflictFileContent = (
+  existingContent: string,
+  incomingContent: string,
+): string =>
+  [
+    "<<<<<<< current project",
+    stripTrailingNewlines(existingContent),
+    "=======",
+    stripTrailingNewlines(incomingContent),
+    ">>>>>>> slop-free template",
+    "",
+  ].join("\n");
+
 const applyPackageJson = async (
   plan: ApplyPlan,
   options: ExecuteApplyPlanOptions,
@@ -59,6 +75,7 @@ const applyPackageJson = async (
       nextSource,
       options.yes,
       options.force,
+      "package-json",
     );
   }
 
@@ -82,6 +99,7 @@ export const executeApplyPlan = async (
   options: ExecuteApplyPlanOptions,
 ): Promise<ApplySummary> => {
   const createdFiles: string[] = [];
+  const conflictedFiles: string[] = [];
   const overwrittenFiles: string[] = [];
   const skippedFiles: string[] = [];
 
@@ -120,6 +138,7 @@ export const executeApplyPlan = async (
       managedFile.content,
       options.yes,
       options.force,
+      "managed-file",
     );
 
     if (decision === "skip") {
@@ -131,19 +150,29 @@ export const executeApplyPlan = async (
       await backupFile(targetPath); // throws with context if backup fails — overwrite will not proceed
     }
 
+    const nextContent =
+      decision === "conflict"
+        ? buildConflictFileContent(existing, managedFile.content)
+        : managedFile.content;
+
     await writeManagedFile(
       options.targetDir,
       managedFile.relativePath,
-      managedFile.content,
+      nextContent,
       options.dryRun,
     );
-    overwrittenFiles.push(managedFile.relativePath);
+
+    if (decision === "conflict") {
+      conflictedFiles.push(managedFile.relativePath);
+    } else {
+      overwrittenFiles.push(managedFile.relativePath);
+    }
   }
 
   const packageJsonUpdated = await applyPackageJson(plan, options);
 
   let installRan = false;
-  if (options.shouldInstall && !options.dryRun) {
+  if (options.shouldInstall && conflictedFiles.length === 0 && !options.dryRun) {
     const installArgs = installCommand();
     try {
       // runCommand is synchronous (spawnSync) — if refactored to async, add await here
@@ -163,7 +192,7 @@ export const executeApplyPlan = async (
   }
 
   let checksRan: readonly string[] = [];
-  if (options.shouldRunChecks && !options.dryRun) {
+  if (options.shouldRunChecks && conflictedFiles.length === 0 && !options.dryRun) {
     const packageJsonForChecks =
       packageJsonUpdated
         ? plan.packageJsonPlan.next
@@ -184,6 +213,7 @@ export const executeApplyPlan = async (
 
   return {
     createdFiles,
+    conflictedFiles,
     overwrittenFiles,
     skippedFiles,
     packageJsonUpdated,
