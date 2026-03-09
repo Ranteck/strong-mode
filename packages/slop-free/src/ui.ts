@@ -63,49 +63,69 @@ export const formatError = (error: unknown): string => {
 
 export type UiTone = "danger" | "info" | "neutral" | "success" | "warning";
 
+const supportsRichColor =
+  color.isColorSupported &&
+  (
+    (typeof process.env.COLORTERM === "string" && /(truecolor|24bit)/iu.test(process.env.COLORTERM)) ||
+    (typeof process.env.TERM === "string" && /(256color|direct)/iu.test(process.env.TERM))
+  );
+
+const applyAnsiColor = (
+  value: string,
+  open: string,
+  fallback: (text: string) => string,
+): string => (supportsRichColor ? `${open}${value}\x1b[39m` : fallback(value));
+
+const palette = {
+  accent: (value: string): string => applyAnsiColor(value, "\x1b[38;2;245;184;90m", color.yellow),
+  brand: (value: string): string => applyAnsiColor(value, "\x1b[38;2;95;215;198m", color.cyan),
+  danger: (value: string): string => applyAnsiColor(value, "\x1b[38;2;255;122;107m", color.red),
+  muted: (value: string): string => applyAnsiColor(value, "\x1b[38;2;148;163;184m", color.gray),
+  success: (value: string): string => applyAnsiColor(value, "\x1b[38;2;115;217;159m", color.green),
+  text: (value: string): string => applyAnsiColor(value, "\x1b[38;2;230;238;243m", color.whiteBright),
+  warning: (value: string): string => applyAnsiColor(value, "\x1b[38;2;255;175;95m", color.yellowBright),
+} as const;
+
 const toneColor = (value: string, tone: UiTone): string => {
   if (tone === "success") {
-    return color.green(value);
+    return palette.success(value);
   }
 
   if (tone === "warning") {
-    return color.yellow(value);
+    return palette.warning(value);
   }
 
   if (tone === "danger") {
-    return color.red(value);
+    return palette.danger(value);
   }
 
   if (tone === "info") {
-    return color.cyan(value);
+    return palette.brand(value);
   }
 
-  return value;
+  return palette.text(value);
 };
 
 export const formatIntroTitle = (): string =>
-  `${color.bold(color.cyan("slop-free"))} ${color.dim("anti-slop retrofit")}`;
+  `${color.bold(palette.brand("slop-free"))} ${palette.muted("anti-slop retrofit")}`;
 
 export const formatSectionTitle = (title: string): string =>
-  color.bold(color.cyan(title));
+  color.bold(palette.brand(title));
 
 export const formatKeyValue = (
   label: string,
   value: string,
   tone: UiTone = "neutral",
-): string => `  ${color.dim(`${label}:`)} ${toneColor(value, tone)}`;
+): string => `  ${palette.muted(`${label}:`)} ${toneColor(value, tone)}`;
 
-export const formatPath = (value: string): string => color.cyan(value);
+export const formatMuted = (value: string): string => palette.muted(value);
 
-export const formatPackageManagerOption = (packageManager: string, label: string): string => {
-  const accent =
-    packageManager === "npm"
-      ? color.red(label)
-      : packageManager === "pnpm"
-        ? color.yellow(label)
-        : packageManager === "yarn"
-          ? color.blue(label)
-          : color.magenta(label);
+export const formatToneText = (value: string, tone: UiTone): string => toneColor(value, tone);
 
-  return `${accent} ${color.dim("package manager")}`;
-};
+export const formatPath = (value: string): string => palette.brand(value);
+
+export const formatPackageManagerOption = (_packageManager: string, label: string): string =>
+  `${palette.text(label)} ${palette.muted("package manager")}`;
+
+export const formatRecommendedAction = (value: string): string =>
+  `${palette.accent(value)} ${palette.muted("(recommended)")}`;

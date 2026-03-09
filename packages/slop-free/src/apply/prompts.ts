@@ -1,14 +1,19 @@
 import { select } from "@clack/prompts";
 import process from "node:process";
-import color from "picocolors";
-import { exitOnCancel } from "../ui.js";
+import {
+  exitOnCancel,
+  formatMuted,
+  formatRecommendedAction,
+  formatSectionTitle,
+  formatToneText,
+} from "../ui.js";
 
 export type ConflictResolution = "conflict" | "overwrite" | "skip";
 export type ConflictPromptMode = "managed-file" | "package-json";
 
 const buildPreview = (label: string, content: string): string => {
   const lines = content.split("\n").slice(0, 40).join("\n");
-  return `${color.bold(color.cyan(`--- ${label} (first 40 lines) ---`))}\n${lines}\n${color.dim(`--- end ${label} ---`)}\n`;
+  return `${formatSectionTitle(`--- ${label} (first 40 lines) ---`)}\n${lines}\n${formatMuted(`--- end ${label} ---`)}\n`;
 };
 
 const promptOptionsForMode = (
@@ -26,15 +31,15 @@ const promptOptionsForMode = (
       initialValue: "overwrite",
       options: [
         {
-          label: `${color.green("Overwrite merged package.json")} ${color.dim("(recommended)")}`,
+          label: formatRecommendedAction("Overwrite merged package.json"),
           value: "overwrite",
         },
         {
-          label: color.dim("Skip"),
+          label: formatMuted("Skip"),
           value: "skip",
         },
         {
-          label: color.cyan("View diff preview"),
+          label: formatToneText("View diff preview", "info"),
           value: "preview",
         },
       ],
@@ -46,19 +51,19 @@ const promptOptionsForMode = (
     initialValue: "conflict",
     options: [
       {
-        label: `${color.yellow("Write merge conflict markers")} ${color.dim("(recommended)")}`,
+        label: formatRecommendedAction("Write merge conflict markers"),
         value: "conflict",
       },
       {
-        label: color.green("Overwrite"),
+        label: formatToneText("Overwrite", "success"),
         value: "overwrite",
       },
       {
-        label: color.dim("Skip"),
+        label: formatMuted("Skip"),
         value: "skip",
       },
       {
-        label: color.cyan("View diff preview"),
+        label: formatToneText("View diff preview", "info"),
         value: "preview",
       },
     ],
