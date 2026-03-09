@@ -1,7 +1,7 @@
 {
   "name": "strong-mode",
   "version": "0.2.1",
-  "description": "Retrofit any TypeScript project with ultra-strict strong-mode defaults",
+  "description": "A CLI that makes TypeScript vibe coding safer with strict defaults and quality guardrails.",
   "license": "MIT",
   "repository": {
     "type": "git",
@@ -13,6 +13,10 @@
     "typescript",
     "eslint",
     "strict",
+    "guardrails",
+    "quality",
+    "vibe-coding",
+    "ai-assisted-coding",
     "strong-mode",
     "code-quality"
   ],
