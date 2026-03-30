@@ -46,3 +46,9 @@ PRs should include:
 - What changed (`scaffold`, `CLI`, or both).
 - Why it changed (user-facing impact).
 - Validation evidence (`npm run check`, plus one local scaffold run).
+
+## Reference Snippets
+
+For reusable policy snippets and copy-ready sections to adapt into project instructions, see `AGENTS.reference.md`.
+
+`AGENTS.md` remains the active repository-specific instruction file. `AGENTS.reference.md` is reference material and does not apply unless copied or injected into the effective instructions.
