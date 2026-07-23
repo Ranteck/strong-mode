@@ -26,31 +26,31 @@ describe("parseCliArgs", (): void => {
   it("throws on unknown flags", (): void => {
     expect((): void => {
       parseCliArgs(["--unknown"]);
-    }).toThrowError("Unknown argument");
+    }).toThrow("Unknown argument");
   });
 
   it("reports missing value when --pm is followed by another flag", (): void => {
     expect((): void => {
       parseCliArgs(["--pm", "--yes"]);
-    }).toThrowError("Missing value for --pm");
+    }).toThrow("Missing value for --pm");
   });
 
   it("throws on unsupported package manager (space-separated)", (): void => {
     expect((): void => {
       parseCliArgs(["--pm", "cargo"]);
-    }).toThrowError("Unsupported package manager");
+    }).toThrow("Unsupported package manager");
   });
 
   it("throws on unsupported package manager (assignment-style)", (): void => {
     expect((): void => {
       parseCliArgs(["--pm=pip"]);
-    }).toThrowError("Unsupported package manager");
+    }).toThrow("Unsupported package manager");
   });
 
   it("throws on positional argument in apply command", (): void => {
     expect((): void => {
       parseCliArgs(["apply", "some-dir"]);
-    }).toThrowError("Unknown positional argument for apply");
+    }).toThrow("Unknown positional argument for apply");
   });
 
   it("produces all-false defaults when no flags are supplied", (): void => {
@@ -69,19 +69,19 @@ describe("parseCliArgs", (): void => {
   it("throws when --cwd is the last argument", (): void => {
     expect((): void => {
       parseCliArgs(["--cwd"]);
-    }).toThrowError("Missing value for --cwd");
+    }).toThrow("Missing value for --cwd");
   });
 
   it("throws when --cwd is followed by another flag", (): void => {
     expect((): void => {
       parseCliArgs(["--cwd", "--dry-run"]);
-    }).toThrowError("Missing value for --cwd");
+    }).toThrow("Missing value for --cwd");
   });
 
   it("throws when --cwd= has an empty value", (): void => {
     expect((): void => {
       parseCliArgs(["--cwd="]);
-    }).toThrowError("Missing value for --cwd");
+    }).toThrow("Missing value for --cwd");
   });
 
   it("parses --no-check as runChecks false", (): void => {
