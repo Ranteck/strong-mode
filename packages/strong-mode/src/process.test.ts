@@ -34,7 +34,7 @@ describe("runCommand", (): void => {
 
     expect(() => {
       runCommand("npm", ["install"], "/tmp/project", "ignore");
-    }).toThrowError("Command failed (exit 1, signal none): npm install");
+    }).toThrow("Command failed (exit 1, signal none): npm install");
   });
 
   it("reports startup failures when spawn returns an actual error", (): void => {
@@ -46,6 +46,6 @@ describe("runCommand", (): void => {
 
     expect(() => {
       runCommand("npm", ["install"], "/tmp/project", "ignore");
-    }).toThrowError("Failed to start command: npm install");
+    }).toThrow("Failed to start command: npm install");
   });
 });
