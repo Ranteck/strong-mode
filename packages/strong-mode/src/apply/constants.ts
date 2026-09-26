@@ -64,3 +64,10 @@ export const MANAGED_TEMPLATE_FILES: readonly ManagedTemplateFile[] = [
 export const LOCKSTEP_DEV_DEPENDENCIES: Readonly<Record<string, string>> = {
   "@vitest/coverage-v8": "vitest",
 };
+
+// A dependent managed file is only written when the file it depends on ends up
+// with the template's content (created, overwritten or already identical);
+// otherwise it would test code the project does not have.
+export const MANAGED_FILE_DEPENDENCIES: Readonly<Record<string, string>> = {
+  "tests/env.test.ts": "src/env.ts",
+};

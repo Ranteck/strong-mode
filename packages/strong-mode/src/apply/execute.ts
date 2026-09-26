@@ -2,7 +2,7 @@ import { createRequire } from "node:module";
 import path from "node:path";
 import { log } from "@clack/prompts";
 import { runPostApplyChecks } from "./checks.js";
-import { LOCKSTEP_DEV_DEPENDENCIES } from "./constants.js";
+import { LOCKSTEP_DEV_DEPENDENCIES, MANAGED_FILE_DEPENDENCIES } from "./constants.js";
 import { backupFile, fileExists, readTextIfExists, writeTextFile } from "./io.js";
 import { isMergeableManagedFile, mergeManagedFileContent } from "./merge.js";
 import { type ConflictResolution, promptFileConflictResolution } from "./prompts.js";
@@ -10,6 +10,7 @@ import type {
   AlignedLockstep,
   ApplyPlan,
   ApplySummary,
+  ManagedFile,
   MismatchedLockstep,
   PackageJsonLike,
 } from "./types.js";
@@ -108,6 +109,142 @@ const applyPackageJson = async (
   }
 
   return "updated";
+};
+
+interface FileResults {
+  readonly createdFiles: string[];
+  readonly conflictedFiles: string[];
+  readonly mergedFiles: string[];
+  readonly overwrittenFiles: string[];
+  readonly skippedFiles: string[];
+  // Files whose final content is exactly the template's (created, overwritten or
+  // already identical). Dependent files are only written for these.
+  readonly templateFiles: Set<string>;
+}
+
+const applyNewFile = async (
+  managedFile: ManagedFile,
+  options: ExecuteApplyPlanOptions,
+  results: FileResults,
+): Promise<void> => {
+  await writeManagedFile(
+    options.targetDir,
+    managedFile.relativePath,
+    managedFile.content,
+    options.dryRun,
+  );
+  results.createdFiles.push(managedFile.relativePath);
+  results.templateFiles.add(managedFile.relativePath);
+};
+
+const applyConflictingFile = async (
+  managedFile: ManagedFile,
+  options: ExecuteApplyPlanOptions,
+  results: FileResults,
+): Promise<void> => {
+  const targetPath = path.join(options.targetDir, managedFile.relativePath);
+  const existing = await readTextIfExists(targetPath);
+  if (existing === undefined) {
+    await applyNewFile(managedFile, options, results);
+    return;
+  }
+
+  if (existing === managedFile.content) {
+    results.skippedFiles.push(managedFile.relativePath);
+    results.templateFiles.add(managedFile.relativePath);
+    return;
+  }
+
+  const decision = await promptFileConflictResolution(
+    managedFile.relativePath,
+    existing,
+    managedFile.content,
+    options.yes,
+    options.force,
+    isMergeableManagedFile(managedFile.relativePath)
+      ? "mergeable-file"
+      : "managed-file",
+  );
+
+  if (decision === "skip") {
+    results.skippedFiles.push(managedFile.relativePath);
+    return;
+  }
+
+  const nextContent =
+    decision === "merge"
+      ? mergeManagedFileContent(managedFile.relativePath, existing, managedFile.content)
+      : decision === "conflict"
+        ? buildConflictFileContent(existing, managedFile.content)
+        : managedFile.content;
+
+  if (decision === "merge" && nextContent === undefined) {
+    if (options.backup && !options.dryRun) {
+      await backupFile(targetPath);
+    }
+
+    await writeManagedFile(
+      options.targetDir,
+      managedFile.relativePath,
+      buildConflictFileContent(existing, managedFile.content),
+      options.dryRun,
+    );
+    results.conflictedFiles.push(managedFile.relativePath);
+    return;
+  }
+
+  if (nextContent === existing) {
+    results.skippedFiles.push(managedFile.relativePath);
+    return;
+  }
+
+  if (nextContent === undefined) {
+    throw new Error(
+      `Merge strategy did not produce content for ${managedFile.relativePath}.`,
+    );
+  }
+
+  if (options.backup && !options.dryRun) {
+    await backupFile(targetPath); // throws with context if backup fails — overwrite will not proceed
+  }
+
+  await writeManagedFile(
+    options.targetDir,
+    managedFile.relativePath,
+    nextContent,
+    options.dryRun,
+  );
+
+  if (decision === "conflict") {
+    results.conflictedFiles.push(managedFile.relativePath);
+  } else if (decision === "merge") {
+    results.mergedFiles.push(managedFile.relativePath);
+  } else {
+    results.overwrittenFiles.push(managedFile.relativePath);
+    results.templateFiles.add(managedFile.relativePath);
+  }
+};
+
+const isDependentFile = (managedFile: ManagedFile): boolean =>
+  MANAGED_FILE_DEPENDENCIES[managedFile.relativePath] !== undefined;
+
+const applyDependentFiles = async (
+  dependents: readonly ManagedFile[],
+  options: ExecuteApplyPlanOptions,
+  results: FileResults,
+): Promise<void> => {
+  for (const managedFile of dependents) {
+    const dependency = MANAGED_FILE_DEPENDENCIES[managedFile.relativePath];
+    if (dependency !== undefined && !results.templateFiles.has(dependency)) {
+      log.info(
+        `Skipping ${managedFile.relativePath}: ${dependency} does not use the strong-mode template.`,
+      );
+      results.skippedFiles.push(managedFile.relativePath);
+      continue;
+    }
+
+    await applyConflictingFile(managedFile, options, results);
+  }
 };
 
 // The version installed for this package, resolved the way Node resolves it from
@@ -321,113 +458,36 @@ export const executeApplyPlan = async (
   plan: ApplyPlan,
   options: ExecuteApplyPlanOptions,
 ): Promise<ApplySummary> => {
-  const createdFiles: string[] = [];
-  const conflictedFiles: string[] = [];
-  const mergedFiles: string[] = [];
-  const overwrittenFiles: string[] = [];
-  const skippedFiles: string[] = [];
+  const results: FileResults = {
+    createdFiles: [],
+    conflictedFiles: [],
+    mergedFiles: [],
+    overwrittenFiles: [],
+    skippedFiles: [],
+    templateFiles: new Set<string>(),
+  };
 
-  for (const managedFile of plan.filesToCreate) {
-    await writeManagedFile(
-      options.targetDir,
-      managedFile.relativePath,
-      managedFile.content,
-      options.dryRun,
-    );
-    createdFiles.push(managedFile.relativePath);
+  for (const managedFile of plan.filesToCreate.filter(
+    (file) => !isDependentFile(file),
+  )) {
+    await applyNewFile(managedFile, options, results);
   }
 
-  for (const managedFile of plan.conflictingFiles) {
-    const targetPath = path.join(options.targetDir, managedFile.relativePath);
-    const existing = await readTextIfExists(targetPath);
-    if (existing === undefined) {
-      await writeManagedFile(
-        options.targetDir,
-        managedFile.relativePath,
-        managedFile.content,
-        options.dryRun,
-      );
-      createdFiles.push(managedFile.relativePath);
-      continue;
-    }
-
-    if (existing === managedFile.content) {
-      skippedFiles.push(managedFile.relativePath);
-      continue;
-    }
-
-    const decision = await promptFileConflictResolution(
-      managedFile.relativePath,
-      existing,
-      managedFile.content,
-      options.yes,
-      options.force,
-      isMergeableManagedFile(managedFile.relativePath)
-        ? "mergeable-file"
-        : "managed-file",
-    );
-
-    if (decision === "skip") {
-      skippedFiles.push(managedFile.relativePath);
-      continue;
-    }
-
-    const nextContent =
-      decision === "merge"
-        ? mergeManagedFileContent(
-            managedFile.relativePath,
-            existing,
-            managedFile.content,
-          )
-        : decision === "conflict"
-          ? buildConflictFileContent(existing, managedFile.content)
-          : managedFile.content;
-
-    if (decision === "merge" && nextContent === undefined) {
-      if (options.backup && !options.dryRun) {
-        await backupFile(targetPath);
-      }
-
-      await writeManagedFile(
-        options.targetDir,
-        managedFile.relativePath,
-        buildConflictFileContent(existing, managedFile.content),
-        options.dryRun,
-      );
-      conflictedFiles.push(managedFile.relativePath);
-      continue;
-    }
-
-    if (nextContent === existing) {
-      skippedFiles.push(managedFile.relativePath);
-      continue;
-    }
-
-    if (nextContent === undefined) {
-      throw new Error(
-        `Merge strategy did not produce content for ${managedFile.relativePath}.`,
-      );
-    }
-
-    if (options.backup && !options.dryRun) {
-      await backupFile(targetPath); // throws with context if backup fails — overwrite will not proceed
-    }
-
-    await writeManagedFile(
-      options.targetDir,
-      managedFile.relativePath,
-      nextContent,
-      options.dryRun,
-    );
-
-    if (decision === "conflict") {
-      conflictedFiles.push(managedFile.relativePath);
-    } else if (decision === "merge") {
-      mergedFiles.push(managedFile.relativePath);
-    } else {
-      overwrittenFiles.push(managedFile.relativePath);
-    }
+  for (const managedFile of plan.conflictingFiles.filter(
+    (file) => !isDependentFile(file),
+  )) {
+    await applyConflictingFile(managedFile, options, results);
   }
+
+  // Dependent files go last so the files they depend on are already resolved.
+  await applyDependentFiles(
+    [...plan.filesToCreate, ...plan.conflictingFiles].filter(isDependentFile),
+    options,
+    results,
+  );
+
+  const { createdFiles, conflictedFiles, mergedFiles, overwrittenFiles, skippedFiles } =
+    results;
 
   const packageJsonOutcome = await applyPackageJson(plan, options);
   let packageJsonUpdated = packageJsonOutcome === "updated";

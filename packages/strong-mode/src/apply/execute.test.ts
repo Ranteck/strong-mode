@@ -2,7 +2,7 @@ import { mkdtemp, mkdir, readdir, readFile, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import type { ApplyPlan } from "./types.js";
+import type { ApplyPlan, ManagedFile } from "./types.js";
 
 const { runCommandMock, runCommandCaptureMock, runPostApplyChecksMock } = vi.hoisted(
   () => ({
@@ -109,6 +109,117 @@ describe("executeApplyPlan", (): void => {
     expect(eslintConfig).toContain(">>>>>>> strong-mode template");
     expect(runCommandMock).not.toHaveBeenCalled();
     expect(runPostApplyChecksMock).not.toHaveBeenCalled();
+  });
+});
+
+describe("executeApplyPlan dependent files", (): void => {
+  const TEMPLATE_ENV = "export const env = { NODE_ENV: 'test' };\n";
+  const PROJECT_ENV = "export const config = { port: 3000 };\n";
+
+  const envFile = (exists: boolean): ManagedFile => ({
+    relativePath: "src/env.ts",
+    sourceTemplatePath: "/template/src/env.ts",
+    content: TEMPLATE_ENV,
+    exists,
+  });
+
+  const envTestFile: ManagedFile = {
+    relativePath: "tests/env.test.ts",
+    sourceTemplatePath: "/template/tests/env.test.ts",
+    content: "// tests the template env.ts\n",
+    exists: false,
+  };
+
+  const createProject = async (envContent?: string): Promise<string> => {
+    const tempDir = await mkdtemp(path.join(os.tmpdir(), "strong-mode-execute-deps-"));
+    await writeFile(
+      path.join(tempDir, "package.json"),
+      '{\n  "name": "fixture-project",\n  "private": true\n}\n',
+    );
+    if (envContent !== undefined) {
+      await mkdir(path.join(tempDir, "src"), { recursive: true });
+      await writeFile(path.join(tempDir, "src/env.ts"), envContent);
+    }
+    return tempDir;
+  };
+
+  const run = async (
+    tempDir: string,
+    plan: Pick<ApplyPlan, "filesToCreate" | "conflictingFiles">,
+    flags: { readonly yes: boolean; readonly force: boolean },
+  ): ReturnType<typeof executeApplyPlan> =>
+    executeApplyPlan(
+      { ...createPlan(tempDir), ...plan },
+      {
+        targetDir: tempDir,
+        packageManager: "npm",
+        ...flags,
+        dryRun: false,
+        backup: false,
+        shouldInstall: false,
+        shouldRunChecks: false,
+      },
+    );
+
+  const envTestExists = async (tempDir: string): Promise<boolean> =>
+    readFile(path.join(tempDir, "tests/env.test.ts"), "utf8").then(
+      (): boolean => true,
+      (): boolean => false,
+    );
+
+  it("skips tests/env.test.ts when the project keeps its own src/env.ts", async (): Promise<void> => {
+    const tempDir = await createProject(PROJECT_ENV);
+
+    const result = await run(
+      tempDir,
+      { filesToCreate: [envTestFile], conflictingFiles: [envFile(true)] },
+      { yes: true, force: false },
+    );
+
+    expect(result.conflictedFiles).toEqual(["src/env.ts"]);
+    expect(result.skippedFiles).toContain("tests/env.test.ts");
+    expect(result.createdFiles).not.toContain("tests/env.test.ts");
+    expect(await envTestExists(tempDir)).toBe(false);
+  });
+
+  it("writes tests/env.test.ts when src/env.ts is overwritten with the template", async (): Promise<void> => {
+    const tempDir = await createProject(PROJECT_ENV);
+
+    const result = await run(
+      tempDir,
+      { filesToCreate: [envTestFile], conflictingFiles: [envFile(true)] },
+      { yes: true, force: true },
+    );
+
+    expect(result.overwrittenFiles).toEqual(["src/env.ts"]);
+    expect(result.createdFiles).toContain("tests/env.test.ts");
+    expect(await envTestExists(tempDir)).toBe(true);
+  });
+
+  it("writes tests/env.test.ts when src/env.ts is created", async (): Promise<void> => {
+    const tempDir = await createProject();
+
+    const result = await run(
+      tempDir,
+      { filesToCreate: [envFile(false), envTestFile], conflictingFiles: [] },
+      { yes: true, force: false },
+    );
+
+    expect(result.createdFiles).toEqual(["src/env.ts", "tests/env.test.ts"]);
+    expect(await envTestExists(tempDir)).toBe(true);
+  });
+
+  it("writes tests/env.test.ts when src/env.ts already matches the template", async (): Promise<void> => {
+    const tempDir = await createProject(TEMPLATE_ENV);
+
+    const result = await run(
+      tempDir,
+      { filesToCreate: [envTestFile], conflictingFiles: [envFile(true)] },
+      { yes: true, force: false },
+    );
+
+    expect(result.createdFiles).toContain("tests/env.test.ts");
+    expect(await envTestExists(tempDir)).toBe(true);
   });
 });
 
