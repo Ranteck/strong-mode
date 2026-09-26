@@ -7,7 +7,7 @@ const EnvSchema = z
   })
   .strict();
 
-export type Env = z.infer<typeof EnvSchema>;
+type Env = z.infer<typeof EnvSchema>;
 
 const parseEnv = (): Env => {
   const externalInput: unknown = {
