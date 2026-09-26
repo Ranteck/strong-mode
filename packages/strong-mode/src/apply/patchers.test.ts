@@ -43,6 +43,28 @@ describe("buildPackageJsonPlan", (): void => {
     expect(plan.summary.addedScripts).toContain("prepare");
   });
 
+  it("replaces the npm init placeholder test script with the template's", (): void => {
+    const current: PackageJsonLike = {
+      scripts: { test: 'echo "Error: no test specified" && exit 1' },
+    };
+    const template: PackageJsonLike = { scripts: { test: "vitest run" } };
+
+    const plan = buildPackageJsonPlan("package.json", current, template, "demo");
+
+    expect(plan.next.scripts?.test).toBe("vitest run");
+    expect(plan.summary.updatedScripts).toContain("test");
+  });
+
+  it("keeps a real existing test script", (): void => {
+    const current: PackageJsonLike = { scripts: { test: "node --test" } };
+    const template: PackageJsonLike = { scripts: { test: "vitest run" } };
+
+    const plan = buildPackageJsonPlan("package.json", current, template, "demo");
+
+    expect(plan.next.scripts?.test).toBe("node --test");
+    expect(plan.summary.updatedScripts).not.toContain("test");
+  });
+
   it("merges existing prepare script with the strong-mode hook installer", (): void => {
     const current: PackageJsonLike = {
       scripts: {

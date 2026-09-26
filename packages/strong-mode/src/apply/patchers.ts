@@ -24,6 +24,12 @@ const KNOWN_SCRIPT_KEYS: readonly string[] = [
   "prepare",
 ];
 
+// Scripts that `npm init` / `pnpm init` generate as placeholders. They carry no
+// user intent, so the template script replaces them instead of being skipped.
+const PLACEHOLDER_SCRIPTS: Readonly<Record<string, string>> = {
+  test: 'echo "Error: no test specified" && exit 1',
+};
+
 const clonePackageJson = (value: PackageJsonLike | undefined): PackageJsonLike =>
   value === undefined ? {} : (JSON.parse(JSON.stringify(value)) as PackageJsonLike);
 
@@ -85,6 +91,9 @@ const mergeScripts = (
     if (previous === undefined) {
       baseScripts[key] = templateValue;
       addedScripts.push(key);
+    } else if (PLACEHOLDER_SCRIPTS[key] === previous) {
+      baseScripts[key] = templateValue;
+      updatedScripts.push(key);
     }
   }
 
