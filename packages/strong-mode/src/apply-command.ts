@@ -5,6 +5,7 @@ import process from "node:process";
 import { detectApplyInput } from "./apply/detect.js";
 import { LOCKSTEP_DEV_DEPENDENCIES } from "./apply/constants.js";
 import { executeApplyPlan } from "./apply/execute.js";
+import { assertEsmProject } from "./apply/module-system.js";
 import { buildApplyPlan } from "./apply/plan.js";
 import { detectPackageManager, packageManagerLabel } from "./package-manager.js";
 import { resolveTemplateDir } from "./template.js";
@@ -248,12 +249,14 @@ export const runApplyCommand = async (
     throw new Error(`Target path is not a directory: ${targetDir}`);
   }
 
+  const detection = await detectApplyInput(targetDir, resolveTemplateDir());
+  assertEsmProject(detection.targetPackageJson);
+
   const packageManager = await choosePackageManager(
     options.packageManager ?? detectPackageManager(targetDir),
     options.yes || options.packageManager !== undefined,
   );
 
-  const detection = await detectApplyInput(targetDir, resolveTemplateDir());
   const plan = buildApplyPlan(targetDir, detection);
   // Warn before anything is written or installed: if install or the checks fail
   // later, only the error would be printed and this explanation would be lost.

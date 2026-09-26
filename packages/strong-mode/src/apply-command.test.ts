@@ -130,6 +130,37 @@ describe("runApplyCommand", (): void => {
     );
   });
 
+  it("rejects a CommonJS project before writing any file", async (): Promise<void> => {
+    const tempDir = await createExistingProject();
+    const packageJsonPath = path.join(tempDir, "package.json");
+    const packageJson = JSON.parse(await readFile(packageJsonPath, "utf8")) as Record<
+      string,
+      unknown
+    >;
+    await writeFile(
+      packageJsonPath,
+      `${JSON.stringify({ ...packageJson, type: "commonjs" }, null, 2)}\n`,
+    );
+    const beforeFiles = await readdir(tempDir);
+    const beforePackageJson = await readFile(packageJsonPath, "utf8");
+
+    await expect(
+      runApplyCommand({
+        command: "apply",
+        cwd: tempDir,
+        packageManager: "npm",
+        install: false,
+        runChecks: false,
+        yes: true,
+        dryRun: false,
+        backup: false,
+        force: false,
+      }),
+    ).rejects.toThrow('"type": "commonjs"');
+    expect(await readdir(tempDir)).toEqual(beforeFiles);
+    expect(await readFile(packageJsonPath, "utf8")).toBe(beforePackageJson);
+  });
+
   it("merges package.json and tsconfig.json for an existing project", async (): Promise<void> => {
     const tempDir = await createExistingProject();
 
