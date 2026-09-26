@@ -34,6 +34,16 @@ describe("MANAGED_TEMPLATE_FILES", (): void => {
     });
   });
 
+  it("lints every TypeScript file, whatever the framework layout", (): void => {
+    const tsconfigEslint = JSON.parse(
+      readFileSync(path.join(resolveTemplateDir(), "tsconfig.eslint.json"), "utf8"),
+    ) as { include?: string[] };
+
+    expect(tsconfigEslint.include).toEqual(
+      expect.arrayContaining(["**/*.ts", "**/*.tsx", "**/*.mts", "**/*.cts"]),
+    );
+  });
+
   it("ships the test for the managed src/env.ts so it does not lower coverage", (): void => {
     expect(MANAGED_TEMPLATE_FILES).toContainEqual({
       sourceRelativePath: "tests/env.test.ts",
