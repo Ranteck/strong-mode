@@ -101,6 +101,39 @@ describe("runApplyCommand", (): void => {
     );
   });
 
+  it("pins @vitest/coverage-v8 to the vitest version installed in the project", async (): Promise<void> => {
+    const tempDir = await createExistingProject();
+    const packageJsonPath = path.join(tempDir, "package.json");
+    const packageJson = JSON.parse(await readFile(packageJsonPath, "utf8")) as {
+      devDependencies: Record<string, string>;
+    };
+    packageJson.devDependencies = { ...packageJson.devDependencies, vitest: "^4.1.0" };
+    await writeFile(packageJsonPath, `${JSON.stringify(packageJson, null, 2)}\n`);
+    await mkdir(path.join(tempDir, "node_modules/vitest"), { recursive: true });
+    await writeFile(
+      path.join(tempDir, "node_modules/vitest/package.json"),
+      '{ "name": "vitest", "version": "4.1.0" }\n',
+    );
+
+    await runApplyCommand({
+      command: "apply",
+      cwd: tempDir,
+      packageManager: "npm",
+      install: false,
+      runChecks: false,
+      yes: true,
+      dryRun: false,
+      backup: false,
+      force: false,
+    });
+
+    const written = JSON.parse(await readFile(packageJsonPath, "utf8")) as {
+      devDependencies: Record<string, string>;
+    };
+    expect(written.devDependencies["@vitest/coverage-v8"]).toBe("4.1.0");
+    expect(written.devDependencies.vitest).toBe("^4.1.0");
+  });
+
   it("merges package.json and tsconfig.json for an existing project", async (): Promise<void> => {
     const tempDir = await createExistingProject();
 

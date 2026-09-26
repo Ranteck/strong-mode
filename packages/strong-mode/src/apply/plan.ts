@@ -19,6 +19,7 @@ export const buildApplyPlan = (
     detection.targetPackageJson,
     detection.templatePackageJson,
     detection.projectName,
+    detection.installedVersions,
   );
 
   const requiresInstall =

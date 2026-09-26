@@ -1,6 +1,7 @@
 import { readFile } from "node:fs/promises";
 import path from "node:path";
-import { MANAGED_TEMPLATE_FILES } from "./constants.js";
+import { valid } from "semver";
+import { LOCKSTEP_DEV_DEPENDENCIES, MANAGED_TEMPLATE_FILES } from "./constants.js";
 import { readTextIfExists } from "./io.js";
 import type { ManagedFile, PackageJsonLike } from "./types.js";
 import { renderTemplateContent, sanitizePackageName } from "../template.js";
@@ -10,6 +11,8 @@ export interface ApplyDetection {
   readonly templatePackageJson: PackageJsonLike;
   readonly managedFiles: readonly ManagedFile[];
   readonly projectName: string;
+  // Versions of lockstep leaders found in node_modules, keyed by package name.
+  readonly installedVersions: Readonly<Record<string, string>>;
 }
 
 const readJson = async <T extends object>(filePath: string): Promise<T> => {
@@ -53,6 +56,24 @@ export const readJsonIfExists = async <T extends object>(
     );
   }
   return parsed as T;
+};
+
+const readInstalledVersions = async (
+  targetDir: string,
+): Promise<Record<string, string>> => {
+  const leaders = [...new Set(Object.values(LOCKSTEP_DEV_DEPENDENCIES))];
+  const entries = await Promise.all(
+    leaders.map(async (leader): Promise<readonly [string, string] | undefined> => {
+      const manifest = await readJsonIfExists<{ version?: unknown }>(
+        path.join(targetDir, "node_modules", leader, "package.json"),
+      );
+      const version =
+        typeof manifest?.version === "string" ? valid(manifest.version) : null;
+      return version === null ? undefined : [leader, version];
+    }),
+  );
+
+  return Object.fromEntries(entries.filter((entry) => entry !== undefined));
 };
 
 export const detectApplyInput = async (
@@ -122,5 +143,6 @@ export const detectApplyInput = async (
     templatePackageJson,
     managedFiles,
     projectName,
+    installedVersions: await readInstalledVersions(targetDir),
   };
 };

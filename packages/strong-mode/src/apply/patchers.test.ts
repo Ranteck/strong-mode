@@ -101,14 +101,52 @@ describe("buildPackageJsonPlan", (): void => {
       expect(plan.summary.addedDevDependencies).toContain("@vitest/coverage-v8");
     });
 
-    it("reads the vitest range from dependencies when it is not a dev dependency", (): void => {
+    it("pairs coverage with a vitest declared in dependencies without duplicating it", (): void => {
       const current: PackageJsonLike = {
         dependencies: { vitest: "~3.1.0" },
       };
 
       const plan = buildPackageJsonPlan("package.json", current, template, "demo");
 
-      expect(plan.next.devDependencies?.["@vitest/coverage-v8"]).toBe("~3.1.0");
+      expect(plan.next.dependencies).toEqual({ vitest: "~3.1.0" });
+      expect(plan.next.devDependencies).toEqual({ "@vitest/coverage-v8": "~3.1.0" });
+      expect(plan.summary.addedDevDependencies).not.toContain("vitest");
+    });
+
+    it.each([
+      ["a GitHub shorthand", "vitest-dev/vitest#v3.2.0"],
+      ["a relative tarball", "./vendor/vitest-3.2.0.tgz"],
+      ["a dist-tag", "latest"],
+    ])(
+      "keeps the template range when vitest is %s",
+      (_label: string, specifier: string): void => {
+        const current: PackageJsonLike = { devDependencies: { vitest: specifier } };
+
+        const plan = buildPackageJsonPlan("package.json", current, template, "demo");
+
+        expect(plan.next.devDependencies?.["@vitest/coverage-v8"]).toBe("^4.1.8");
+      },
+    );
+
+    it("pins coverage to the installed vitest when it satisfies the declared range", (): void => {
+      const current: PackageJsonLike = { devDependencies: { vitest: "^4.1.0" } };
+
+      const plan = buildPackageJsonPlan("package.json", current, template, "demo", {
+        vitest: "4.1.0",
+      });
+
+      expect(plan.next.devDependencies?.["@vitest/coverage-v8"]).toBe("4.1.0");
+      expect(plan.next.devDependencies?.vitest).toBe("^4.1.0");
+    });
+
+    it("ignores an installed vitest that does not satisfy the declared range", (): void => {
+      const current: PackageJsonLike = { devDependencies: { vitest: "^3.2.0" } };
+
+      const plan = buildPackageJsonPlan("package.json", current, template, "demo", {
+        vitest: "4.1.0",
+      });
+
+      expect(plan.next.devDependencies?.["@vitest/coverage-v8"]).toBe("^3.2.0");
     });
 
     it("keeps the template ranges when the project has no vitest", (): void => {

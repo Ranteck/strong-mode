@@ -1,3 +1,5 @@
+import { satisfies, validRange } from "semver";
+import { LOCKSTEP_DEV_DEPENDENCIES } from "./constants.js";
 import type {
   PackageJsonChangeSummary,
   PackageJsonLike,
@@ -22,13 +24,6 @@ const KNOWN_SCRIPT_KEYS: readonly string[] = [
   "quality",
   "prepare",
 ];
-
-// Packages released in lockstep with a leader package that they require at the
-// exact same version as a peer. When the template adds the follower but the
-// project already declares the leader, reuse the project's leader range.
-const LOCKSTEP_DEV_DEPENDENCIES: Readonly<Record<string, string>> = {
-  "@vitest/coverage-v8": "vitest",
-};
 
 const clonePackageJson = (value: PackageJsonLike | undefined): PackageJsonLike =>
   value === undefined ? {} : (JSON.parse(JSON.stringify(value)) as PackageJsonLike);
@@ -105,6 +100,7 @@ const mergeScripts = (
 const mergeDependencies = (
   current: Record<string, string> | undefined,
   template: Record<string, string> | undefined,
+  declaredElsewhere?: Record<string, string>,
 ): {
   readonly merged: Record<string, string>;
   readonly added: readonly string[];
@@ -114,7 +110,7 @@ const mergeDependencies = (
   const added: string[] = [];
 
   for (const [name, version] of Object.entries(templateDeps)) {
-    if (currentDeps[name] === undefined) {
+    if (currentDeps[name] === undefined && declaredElsewhere?.[name] === undefined) {
       currentDeps[name] = version;
       added.push(name);
     }
@@ -126,24 +122,41 @@ const mergeDependencies = (
   };
 };
 
+// Picks the follower specifier for a project that declares the leader: the
+// installed leader version when it satisfies the declared range (lockfiles can
+// keep an older leader than the newest follower in range), else the declared
+// range. Non-semver specifiers (dist-tags, git, tarballs, paths, protocols)
+// cannot be reused for another package, so they return undefined.
+const resolveFollowerSpecifier = (
+  leaderRange: string | undefined,
+  installedLeader: string | undefined,
+): string | undefined => {
+  if (leaderRange === undefined || validRange(leaderRange) === null) {
+    return undefined;
+  }
+
+  if (installedLeader !== undefined && satisfies(installedLeader, leaderRange)) {
+    return installedLeader;
+  }
+
+  return leaderRange;
+};
+
 const alignLockstepDevDependencies = (
   devDependencies: Record<string, string>,
   addedDevDependencies: readonly string[],
   current: PackageJsonLike | undefined,
+  installedVersions: Readonly<Record<string, string>>,
 ): Record<string, string> => {
   const aligned = { ...devDependencies };
 
   for (const [follower, leader] of Object.entries(LOCKSTEP_DEV_DEPENDENCIES)) {
-    const leaderRange =
-      current?.devDependencies?.[leader] ?? current?.dependencies?.[leader];
-    // Protocol specifiers (workspace:, catalog:, npm:, file:) cannot be reused
-    // for a different package, so those keep the template range.
-    if (
-      addedDevDependencies.includes(follower) &&
-      leaderRange !== undefined &&
-      !leaderRange.includes(":")
-    ) {
-      aligned[follower] = leaderRange;
+    const specifier = resolveFollowerSpecifier(
+      current?.devDependencies?.[leader] ?? current?.dependencies?.[leader],
+      installedVersions[leader],
+    );
+    if (addedDevDependencies.includes(follower) && specifier !== undefined) {
+      aligned[follower] = specifier;
     }
   }
 
@@ -172,6 +185,7 @@ export const buildPackageJsonPlan = (
   current: PackageJsonLike | undefined,
   templatePackageJson: PackageJsonLike,
   fallbackName: string,
+  installedVersions: Readonly<Record<string, string>> = {},
 ): PackageJsonPlan => {
   const next = clonePackageJson(current);
   next.name = typeof current?.name === "string" ? current.name : fallbackName;
@@ -190,9 +204,12 @@ export const buildPackageJsonPlan = (
     current?.dependencies,
     templatePackageJson.dependencies,
   );
+  // A package the project already declares as a runtime dependency also serves
+  // development, so the template must not add a second, conflicting declaration.
   const mergedDevDependencies = mergeDependencies(
     current?.devDependencies,
     templatePackageJson.devDependencies,
+    current?.dependencies,
   );
 
   next.dependencies = mergedDependencies.merged;
@@ -200,6 +217,7 @@ export const buildPackageJsonPlan = (
     mergedDevDependencies.merged,
     mergedDevDependencies.added,
     current,
+    installedVersions,
   );
 
   const summary = summarizeChanges(
