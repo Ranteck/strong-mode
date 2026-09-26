@@ -24,9 +24,9 @@ npx strong-mode
 - No `any`, no `ts-expect-error` without a 10-char description, no chained assertions (`as unknown as T`)
 - `process.env` access restricted to `src/env.ts`
 - Complexity limits: cyclomatic ≤ 10, depth ≤ 3, params ≤ 4
-- Type-aware linting of sources, tests, and TS configs through `tsconfig.eslint.json`
+- Type-aware linting of every TypeScript file in the project (any framework layout) through `tsconfig.eslint.json`
 
-**Runtime validation** (`src/env.ts`, tested by `tests/env.test.ts`):
+**Runtime validation** (`src/env.ts`, tested by `tests/env.test.ts` — added only when the project uses the template's `src/env.ts`):
 
 - Zod-based env validation template — all `process.env` access goes through here; invalid values throw at startup
 
@@ -81,4 +81,5 @@ node packages/strong-mode/dist/cli.js --dry-run --yes
 
 - **CommonJS projects are not supported yet.** The template is ESM-only (`module: NodeNext` + `verbatimModuleSyntax`), so `strong-mode` stops before writing anything when `package.json` has `"type": "commonjs"`. Planned: a CommonJS-aware `tsconfig.json` (`verbatimModuleSyntax: false`, with `consistent-type-imports` keeping type-only imports explicit), and no longer switching a `package.json` without `"type"` to `"module"`.
 - **Dead-code detection assumes a `src/index.ts` entry.** `knip.config.ts` pins `entry` and `project`, so frameworks with other entry points (Next.js, Vite, Astro, …) get false "unused file" reports. Planned: drop the pinned entries and let knip's framework plugins detect them.
+- **Upgrading from an older strong-mode.** Re-running `strong-mode` on a project that already has an older version of the managed files treats every changed file as a conflict (Git-style markers with `--yes`). Planned: recognize previously shipped template versions and update them in place.
 - **Dependencies are merged per section.** A package the project declares in `dependencies` can be added again to `devDependencies` (for example `vitest`). Planned: treat a package declared in either section as present.
