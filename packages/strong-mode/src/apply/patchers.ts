@@ -23,6 +23,13 @@ const KNOWN_SCRIPT_KEYS: readonly string[] = [
   "prepare",
 ];
 
+// Packages released in lockstep with a leader package that they require at the
+// exact same version as a peer. When the template adds the follower but the
+// project already declares the leader, reuse the project's leader range.
+const LOCKSTEP_DEV_DEPENDENCIES: Readonly<Record<string, string>> = {
+  "@vitest/coverage-v8": "vitest",
+};
+
 const clonePackageJson = (value: PackageJsonLike | undefined): PackageJsonLike =>
   value === undefined ? {} : (JSON.parse(JSON.stringify(value)) as PackageJsonLike);
 
@@ -119,6 +126,30 @@ const mergeDependencies = (
   };
 };
 
+const alignLockstepDevDependencies = (
+  devDependencies: Record<string, string>,
+  addedDevDependencies: readonly string[],
+  current: PackageJsonLike | undefined,
+): Record<string, string> => {
+  const aligned = { ...devDependencies };
+
+  for (const [follower, leader] of Object.entries(LOCKSTEP_DEV_DEPENDENCIES)) {
+    const leaderRange =
+      current?.devDependencies?.[leader] ?? current?.dependencies?.[leader];
+    // Protocol specifiers (workspace:, catalog:, npm:, file:) cannot be reused
+    // for a different package, so those keep the template range.
+    if (
+      addedDevDependencies.includes(follower) &&
+      leaderRange !== undefined &&
+      !leaderRange.includes(":")
+    ) {
+      aligned[follower] = leaderRange;
+    }
+  }
+
+  return aligned;
+};
+
 const summarizeChanges = (
   before: PackageJsonLike | undefined,
   after: PackageJsonLike,
@@ -165,7 +196,11 @@ export const buildPackageJsonPlan = (
   );
 
   next.dependencies = mergedDependencies.merged;
-  next.devDependencies = mergedDevDependencies.merged;
+  next.devDependencies = alignLockstepDevDependencies(
+    mergedDevDependencies.merged,
+    mergedDevDependencies.added,
+    current,
+  );
 
   const summary = summarizeChanges(
     current,

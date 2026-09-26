@@ -78,7 +78,7 @@ The apply command (for existing projects) uses a detect → plan → execute pip
 
 1. **`src/apply/detect.ts`**: Reads target project state — existing package.json, which managed files already exist, and their current content
 2. **`src/apply/plan.ts`**: Splits managed files into `filesToCreate` (new) and `conflictingFiles` (existing), builds package.json merge plan
-3. **`src/apply/patchers.ts`**: Generates package.json merge plan — adds template dependencies/scripts without removing existing ones. Special handling for `prepare` script (appends `lefthook install` if missing)
+3. **`src/apply/patchers.ts`**: Generates package.json merge plan — adds template dependencies/scripts without removing existing ones. Special handling for `prepare` script (appends `node ./scripts/prepare-hooks.mjs` if missing). Lockstep packages (`LOCKSTEP_DEV_DEPENDENCIES`, e.g. `@vitest/coverage-v8` → `vitest`) are added with the project's existing leader range instead of the template's, since they peer-depend on the exact same version
 4. **`src/apply/execute.ts`**: Executes the plan with dry-run, backup (`{file}.strong-mode-backup.{ISO-timestamp}`), and force options. Per-file conflict resolution comes from `src/apply/prompts.ts`: merge, Git-style conflict markers, overwrite, skip, or diff preview. `--force` always overwrites; `--yes` picks a default per file type — `package.json` → overwrite with the merge plan, `tsconfig.json`/`.gitignore` → structural merge via `src/apply/merge.ts` (falls back to conflict markers), everything else → conflict markers. Install and post-apply checks (`src/apply/checks.ts`: typecheck → lint → test) are skipped when any file was left with conflict markers
 
 ### Package Manager Detection (`src/package-manager.ts`)
