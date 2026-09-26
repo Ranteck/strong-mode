@@ -52,6 +52,10 @@ export const MANAGED_TEMPLATE_FILES: readonly ManagedTemplateFile[] = [
     sourceRelativePath: "src/env.ts",
     targetRelativePath: "src/env.ts",
   },
+  {
+    sourceRelativePath: "tests/env.test.ts",
+    targetRelativePath: "tests/env.test.ts",
+  },
 ];
 
 // Packages released in lockstep with a leader package that they require at the

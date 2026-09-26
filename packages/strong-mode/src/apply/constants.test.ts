@@ -34,6 +34,13 @@ describe("MANAGED_TEMPLATE_FILES", (): void => {
     });
   });
 
+  it("ships the test for the managed src/env.ts so it does not lower coverage", (): void => {
+    expect(MANAGED_TEMPLATE_FILES).toContainEqual({
+      sourceRelativePath: "tests/env.test.ts",
+      targetRelativePath: "tests/env.test.ts",
+    });
+  });
+
   it("manages every local script referenced by template package.json and lefthook.yml", (): void => {
     const referencedScripts = ["package.json", "lefthook.yml"].flatMap((file) =>
       [

@@ -18,10 +18,7 @@ const parseEnv = (): Env => {
   const parsed = EnvSchema.safeParse(externalInput);
   if (!parsed.success) {
     const details = parsed.error.issues
-      .map((issue) => {
-        const path = issue.path.join(".");
-        return `${path.length > 0 ? path : "env"}: ${issue.message}`;
-      })
+      .map((issue) => `${["env", ...issue.path].join(".")}: ${issue.message}`)
       .join("\n");
 
     throw new Error(`Invalid environment configuration:\n${details}`);
