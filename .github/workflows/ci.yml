@@ -41,4 +41,41 @@ jobs:
           mkdir -p /tmp/strong-mode-smoke
           cd /tmp/strong-mode-smoke
           npm init -y >/dev/null 2>&1
+          npm pkg set type=module
           npm exec --yes --package="$tarball" strong-mode -- --dry-run --yes
+
+      # Applies the packed CLI for real (install + post-apply checks) and then runs
+      # the generated project's own fast gate, so the template must pass the gates
+      # it installs. The template's example code doubles as the fixture.
+      - name: Scaffold smoke test (install + gates)
+        shell: bash
+        run: |
+          set -euo pipefail
+          tarball="$(find "${GITHUB_WORKSPACE}/packages/strong-mode" -maxdepth 1 -name '*.tgz' | head -n 1)"
+          template="${GITHUB_WORKSPACE}/packages/scaffold-ultra/template"
+          fixture=/tmp/strong-mode-scaffold
+          mkdir -p "$fixture/src" "$fixture/tests"
+          cp "$template/src/index.ts" "$fixture/src/"
+          cp "$template/tests/index.test.ts" "$fixture/tests/"
+          cd "$fixture"
+          git init -q
+          npm init -y >/dev/null 2>&1
+          npm pkg set type=module
+          npm exec --yes --package="$tarball" strong-mode -- --yes
+          npm run check
+
+      - name: Scaffold smoke test (CommonJS is rejected)
+        shell: bash
+        run: |
+          set -euo pipefail
+          tarball="$(find "${GITHUB_WORKSPACE}/packages/strong-mode" -maxdepth 1 -name '*.tgz' | head -n 1)"
+          fixture=/tmp/strong-mode-cjs
+          mkdir -p "$fixture"
+          cd "$fixture"
+          npm init -y >/dev/null 2>&1
+          npm pkg set type=commonjs
+          if npm exec --yes --package="$tarball" strong-mode -- --yes; then
+            echo "strong-mode should reject a CommonJS project" >&2
+            exit 1
+          fi
+          test "$(ls -A)" = "package.json"
