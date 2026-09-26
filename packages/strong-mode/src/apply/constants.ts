@@ -37,6 +37,10 @@ export const MANAGED_TEMPLATE_FILES: readonly ManagedTemplateFile[] = [
     targetRelativePath: "scripts/run-package-manager.sh",
   },
   {
+    sourceRelativePath: "scripts/prepare-hooks.mjs",
+    targetRelativePath: "scripts/prepare-hooks.mjs",
+  },
+  {
     sourceRelativePath: "gitignore",
     targetRelativePath: ".gitignore",
   },
