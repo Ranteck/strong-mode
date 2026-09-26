@@ -27,6 +27,13 @@ describe("MANAGED_TEMPLATE_FILES", (): void => {
     });
   });
 
+  it("includes the ESLint-only tsconfig used for type-aware linting", (): void => {
+    expect(MANAGED_TEMPLATE_FILES).toContainEqual({
+      sourceRelativePath: "tsconfig.eslint.json",
+      targetRelativePath: "tsconfig.eslint.json",
+    });
+  });
+
   it("manages every local script referenced by template package.json and lefthook.yml", (): void => {
     const referencedScripts = ["package.json", "lefthook.yml"].flatMap((file) =>
       [

@@ -103,15 +103,17 @@ const mergeGitignore = (existingContent: string, incomingContent: string): strin
   return `${merged.join("\n")}\n`;
 };
 
+const TSCONFIG_FILES: readonly string[] = ["tsconfig.json", "tsconfig.eslint.json"];
+
 export const isMergeableManagedFile = (relativePath: string): boolean =>
-  relativePath === "tsconfig.json" || relativePath === ".gitignore";
+  TSCONFIG_FILES.includes(relativePath) || relativePath === ".gitignore";
 
 export const mergeManagedFileContent = (
   relativePath: string,
   existingContent: string,
   incomingContent: string,
 ): string | undefined => {
-  if (relativePath === "tsconfig.json") {
+  if (TSCONFIG_FILES.includes(relativePath)) {
     return mergeTsconfig(existingContent, incomingContent);
   }
 

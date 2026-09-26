@@ -9,6 +9,10 @@ export const MANAGED_TEMPLATE_FILES: readonly ManagedTemplateFile[] = [
     targetRelativePath: "tsconfig.json",
   },
   {
+    sourceRelativePath: "tsconfig.eslint.json",
+    targetRelativePath: "tsconfig.eslint.json",
+  },
+  {
     sourceRelativePath: "eslint.config.mjs",
     targetRelativePath: "eslint.config.mjs",
   },
