@@ -8,6 +8,8 @@ npx strong-mode
 
 `strong-mode` hardens existing TypeScript projects with strict defaults, sharper lint rules, and quality guardrails built for AI-assisted coding. It upgrades the tooling around your codebase without rewriting the app itself.
 
+> **Requires an ES module project** (`"type": "module"` in `package.json`). CommonJS projects are rejected before anything is written; see [Roadmap / Known limitations](#roadmap--known-limitations).
+
 ## What it installs
 
 `strong-mode` layers a strict baseline onto an existing repository. You keep your app code; it adds the rails around it.
@@ -22,15 +24,17 @@ npx strong-mode
 - No `any`, no `ts-expect-error` without a 10-char description, no chained assertions (`as unknown as T`)
 - `process.env` access restricted to `src/env.ts`
 - Complexity limits: cyclomatic ≤ 10, depth ≤ 3, params ≤ 4
+- Type-aware linting of sources, tests, and TS configs through `tsconfig.eslint.json`
 
-**Runtime validation** (`src/env.ts`):
+**Runtime validation** (`src/env.ts`, tested by `tests/env.test.ts`):
 
-- Zod-based env validation template — all `process.env` access goes through here
+- Zod-based env validation template — all `process.env` access goes through here; invalid values throw at startup
 
 **Quality gates** (npm scripts):
 
 - `check`: typecheck + lint + format check + dead code (fast, pre-commit)
 - `quality`: check + tests + coverage + dep graph + dep cycles + audit (full)
+- `test`: runs Vitest with coverage thresholds (90% lines/functions/statements, 85% branches) on every run
 
 **Tooling configs**: Prettier, Vitest, Knip (dead code), dependency-cruiser, lefthook (git hooks)
 
@@ -49,7 +53,7 @@ npx strong-mode
 
 ## How it works
 
-`strong-mode` compares 11 managed files from its template against your project. New files are created automatically. Existing managed files can be merged, skipped, overwritten, or written with Git-style conflict markers depending on the file type and flags you use. `package.json` is handled structurally, so scripts and dependencies are added without flattening the rest of your project config.
+`strong-mode` compares 13 managed files from its template against your project. New files are created automatically. Existing managed files can be merged, skipped, overwritten, or written with Git-style conflict markers depending on the file type and flags you use. `package.json` is handled structurally, so scripts and dependencies are added without flattening the rest of your project config.
 
 ## Contributing
 
@@ -69,6 +73,12 @@ node packages/strong-mode/dist/cli.js --dry-run --yes
 
 ## CI and Release
 
-- `.github/workflows/ci.yml` runs install, check, build, `npm pack`, and a smoke test of the packed CLI on every push/PR.
+- `.github/workflows/ci.yml` runs install, check, build, `npm pack`, and smoke tests of the packed CLI on every push/PR: a dry run, a real apply on a fresh ESM project that must then pass its own `check` (including dead code), and a CommonJS project that must be rejected.
 - `.github/workflows/publish.yml` reruns validation, packs the tarball, smoke-tests it, and publishes `packages/strong-mode` on `v*` tags or manual dispatch.
 - The first npm publish for a new package may need to be done manually. After the package exists, configure npm trusted publishing to trust this repository and `.github/workflows/publish.yml`.
+
+## Roadmap / Known limitations
+
+- **CommonJS projects are not supported yet.** The template is ESM-only (`module: NodeNext` + `verbatimModuleSyntax`), so `strong-mode` stops before writing anything when `package.json` has `"type": "commonjs"`. Planned: a CommonJS-aware `tsconfig.json` (`verbatimModuleSyntax: false`, with `consistent-type-imports` keeping type-only imports explicit), and no longer switching a `package.json` without `"type"` to `"module"`.
+- **Dead-code detection assumes a `src/index.ts` entry.** `knip.config.ts` pins `entry` and `project`, so frameworks with other entry points (Next.js, Vite, Astro, …) get false "unused file" reports. Planned: drop the pinned entries and let knip's framework plugins detect them.
+- **Dependencies are merged per section.** A package the project declares in `dependencies` can be added again to `devDependencies` (for example `vitest`). Planned: treat a package declared in either section as present.
