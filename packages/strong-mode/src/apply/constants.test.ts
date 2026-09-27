@@ -2,7 +2,22 @@ import { readFileSync } from "node:fs";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
 import { resolveTemplateDir } from "../template.js";
-import { MANAGED_TEMPLATE_FILES } from "./constants.js";
+import { LOCKSTEP_DEV_DEPENDENCIES, MANAGED_TEMPLATE_FILES } from "./constants.js";
+
+describe("LOCKSTEP_DEV_DEPENDENCIES", (): void => {
+  it("pins every lockstep pair to the same range in the template", (): void => {
+    const templatePackageJson = JSON.parse(
+      readFileSync(path.join(resolveTemplateDir(), "package.json"), "utf8"),
+    ) as { devDependencies: Record<string, string> };
+
+    for (const [follower, leader] of Object.entries(LOCKSTEP_DEV_DEPENDENCIES)) {
+      expect(templatePackageJson.devDependencies[follower]).toBeDefined();
+      expect(templatePackageJson.devDependencies[follower]).toBe(
+        templatePackageJson.devDependencies[leader],
+      );
+    }
+  });
+});
 
 describe("MANAGED_TEMPLATE_FILES", (): void => {
   it("includes the package-manager hook wrapper", (): void => {
