@@ -55,3 +55,11 @@ export interface ApplySummary {
   readonly installRan: boolean;
   readonly checksRan: readonly string[];
 }
+
+// A lockstep leader found in node_modules. `inProject` is false when it was only
+// found in a parent directory (a workspace root), whose install may not match the
+// package's own resolution of a non-semver specifier such as `catalog:`.
+export interface InstalledVersion {
+  readonly version: string;
+  readonly inProject: boolean;
+}

@@ -95,7 +95,7 @@ const warnAboutDeferredLockstep = (plan: ReturnType<typeof buildApplyPlan>): voi
       current?.dependencies?.[leader] ??
       "unknown";
     log.warn(
-      `${follower} not added: ${leader} is declared as "${specifier}" and no installed version was found. Install dependencies and re-run strong-mode, or add ${follower} at your ${leader} version.`,
+      `${follower} not added: ${leader} is declared as "${specifier}" and this package has no installed version of ${leader} to match it to. Install dependencies and re-run strong-mode, or add ${follower} at your ${leader} version.`,
     );
   }
 };

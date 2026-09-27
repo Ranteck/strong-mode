@@ -143,13 +143,48 @@ describe("buildPackageJsonPlan", (): void => {
         first.next,
         template,
         "demo",
-        {
-          vitest: "3.2.4",
-        },
+        { vitest: { version: "3.2.4", inProject: true } },
       );
 
       expect(second.next.devDependencies?.["@vitest/coverage-v8"]).toBe("3.2.4");
       expect(second.summary.deferredLockstep).toEqual([]);
+    });
+
+    it("does not pin a catalog vitest to a version inherited from the workspace root", (): void => {
+      const current: PackageJsonLike = { devDependencies: { vitest: "catalog:" } };
+
+      const plan = buildPackageJsonPlan("package.json", current, template, "app", {
+        vitest: { version: "3.2.4", inProject: false },
+      });
+
+      expect(plan.next.devDependencies).not.toHaveProperty("@vitest/coverage-v8");
+      expect(plan.summary.deferredLockstep).toEqual(["@vitest/coverage-v8"]);
+    });
+
+    it("pins a catalog vitest once the package has its own install", (): void => {
+      const first = buildPackageJsonPlan(
+        "package.json",
+        { devDependencies: { vitest: "catalog:" } },
+        template,
+        "app",
+        { vitest: { version: "3.2.4", inProject: false } },
+      );
+      const second = buildPackageJsonPlan("package.json", first.next, template, "app", {
+        vitest: { version: "4.1.8", inProject: true },
+      });
+
+      expect(second.next.devDependencies?.["@vitest/coverage-v8"]).toBe("4.1.8");
+      expect(second.summary.deferredLockstep).toEqual([]);
+    });
+
+    it("accepts a workspace-root vitest that satisfies a semver range", (): void => {
+      const current: PackageJsonLike = { devDependencies: { vitest: "^3.2.0" } };
+
+      const plan = buildPackageJsonPlan("package.json", current, template, "app", {
+        vitest: { version: "3.2.4", inProject: false },
+      });
+
+      expect(plan.next.devDependencies?.["@vitest/coverage-v8"]).toBe("3.2.4");
     });
 
     it.each([["catalog:"], ["latest"], ["workspace:*"]])(
@@ -158,7 +193,7 @@ describe("buildPackageJsonPlan", (): void => {
         const current: PackageJsonLike = { devDependencies: { vitest: specifier } };
 
         const plan = buildPackageJsonPlan("package.json", current, template, "demo", {
-          vitest: "3.2.4",
+          vitest: { version: "3.2.4", inProject: true },
         });
 
         expect(plan.next.devDependencies?.["@vitest/coverage-v8"]).toBe("3.2.4");
@@ -170,7 +205,7 @@ describe("buildPackageJsonPlan", (): void => {
       const current: PackageJsonLike = { devDependencies: { vitest: "^4.1.0" } };
 
       const plan = buildPackageJsonPlan("package.json", current, template, "demo", {
-        vitest: "4.1.0",
+        vitest: { version: "4.1.0", inProject: true },
       });
 
       expect(plan.next.devDependencies?.["@vitest/coverage-v8"]).toBe("4.1.0");
@@ -181,7 +216,7 @@ describe("buildPackageJsonPlan", (): void => {
       const current: PackageJsonLike = { devDependencies: { vitest: "^3.2.0" } };
 
       const plan = buildPackageJsonPlan("package.json", current, template, "demo", {
-        vitest: "4.1.0",
+        vitest: { version: "4.1.0", inProject: true },
       });
 
       expect(plan.next.devDependencies?.["@vitest/coverage-v8"]).toBe("^3.2.0");

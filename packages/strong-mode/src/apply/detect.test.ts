@@ -21,7 +21,9 @@ describe("readInstalledVersions", (): void => {
     const dir = await createProject();
     await writeVitestManifest(dir, '{ "name": "vitest", "version": "4.1.0" }\n');
 
-    expect(await readInstalledVersions(dir)).toEqual({ vitest: "4.1.0" });
+    expect(await readInstalledVersions(dir)).toEqual({
+      vitest: { version: "4.1.0", inProject: true },
+    });
   });
 
   it("returns nothing when vitest is not installed", async (): Promise<void> => {
@@ -49,7 +51,9 @@ describe("readInstalledVersions", (): void => {
     const app = path.join(root, "packages/app");
     await mkdir(app, { recursive: true });
 
-    expect(await readInstalledVersions(app)).toEqual({ vitest: "3.2.4" });
+    expect(await readInstalledVersions(app)).toEqual({
+      vitest: { version: "3.2.4", inProject: false },
+    });
   });
 
   it("does not look past the project root", async (): Promise<void> => {

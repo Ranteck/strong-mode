@@ -1,6 +1,7 @@
 import { satisfies, validRange } from "semver";
 import { LOCKSTEP_DEV_DEPENDENCIES } from "./constants.js";
 import type {
+  InstalledVersion,
   PackageJsonChangeSummary,
   PackageJsonLike,
   PackageJsonPlan,
@@ -129,20 +130,24 @@ const mergeDependencies = (
 // cannot be reused for another package, so they return undefined.
 const resolveFollowerSpecifier = (
   leaderRange: string | undefined,
-  installedLeader: string | undefined,
+  installedLeader: InstalledVersion | undefined,
 ): string | undefined => {
   if (leaderRange === undefined) {
     return undefined;
   }
 
   // A non-semver specifier (catalog:, workspace:, dist-tag, git, path) cannot be
-  // reused for another package; only the version it actually installed is safe.
+  // reused for another package; only the version it installed in this package is
+  // safe. A version inherited from a workspace root cannot be matched to it.
   if (validRange(leaderRange) === null) {
-    return installedLeader;
+    return installedLeader?.inProject === true ? installedLeader.version : undefined;
   }
 
-  if (installedLeader !== undefined && satisfies(installedLeader, leaderRange)) {
-    return installedLeader;
+  if (
+    installedLeader !== undefined &&
+    satisfies(installedLeader.version, leaderRange)
+  ) {
+    return installedLeader.version;
   }
 
   return leaderRange;
@@ -152,7 +157,7 @@ const alignLockstepDevDependencies = (
   devDependencies: Record<string, string>,
   addedDevDependencies: readonly string[],
   current: PackageJsonLike | undefined,
-  installedVersions: Readonly<Record<string, string>>,
+  installedVersions: Readonly<Record<string, InstalledVersion>>,
 ): {
   readonly aligned: Record<string, string>;
   // Followers not added because the project declares the leader with a specifier
@@ -209,7 +214,7 @@ export const buildPackageJsonPlan = (
   current: PackageJsonLike | undefined,
   templatePackageJson: PackageJsonLike,
   fallbackName: string,
-  installedVersions: Readonly<Record<string, string>> = {},
+  installedVersions: Readonly<Record<string, InstalledVersion>> = {},
 ): PackageJsonPlan => {
   const next = clonePackageJson(current);
   next.name = typeof current?.name === "string" ? current.name : fallbackName;

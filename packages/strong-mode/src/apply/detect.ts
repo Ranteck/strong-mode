@@ -4,7 +4,7 @@ import { log } from "@clack/prompts";
 import { valid } from "semver";
 import { LOCKSTEP_DEV_DEPENDENCIES, MANAGED_TEMPLATE_FILES } from "./constants.js";
 import { fileExists, readTextIfExists } from "./io.js";
-import type { ManagedFile, PackageJsonLike } from "./types.js";
+import type { InstalledVersion, ManagedFile, PackageJsonLike } from "./types.js";
 import { renderTemplateContent, sanitizePackageName } from "../template.js";
 
 export interface ApplyDetection {
@@ -12,8 +12,8 @@ export interface ApplyDetection {
   readonly templatePackageJson: PackageJsonLike;
   readonly managedFiles: readonly ManagedFile[];
   readonly projectName: string;
-  // Versions of lockstep leaders found in node_modules, keyed by package name.
-  readonly installedVersions: Readonly<Record<string, string>>;
+  // Lockstep leaders found in node_modules, keyed by package name.
+  readonly installedVersions: Readonly<Record<string, InstalledVersion>>;
 }
 
 const readJson = async <T extends object>(filePath: string): Promise<T> => {
@@ -97,8 +97,8 @@ const findSearchRoots = async (targetDir: string): Promise<readonly string[]> =>
 const readInstalledVersion = async (
   leader: string,
   searchRoots: readonly string[],
-): Promise<string | undefined> => {
-  for (const root of searchRoots) {
+): Promise<InstalledVersion | undefined> => {
+  for (const [index, root] of searchRoots.entries()) {
     const manifestPath = path.join(root, "node_modules", leader, "package.json");
     let manifest: { version?: unknown } | undefined;
     try {
@@ -115,7 +115,7 @@ const readInstalledVersion = async (
     if (manifest !== undefined) {
       const version =
         typeof manifest.version === "string" ? valid(manifest.version) : null;
-      return version ?? undefined;
+      return version === null ? undefined : { version, inProject: index === 0 };
     }
   }
 
@@ -124,14 +124,16 @@ const readInstalledVersion = async (
 
 export const readInstalledVersions = async (
   targetDir: string,
-): Promise<Record<string, string>> => {
+): Promise<Record<string, InstalledVersion>> => {
   const searchRoots = await findSearchRoots(targetDir);
   const leaders = [...new Set(Object.values(LOCKSTEP_DEV_DEPENDENCIES))];
   const entries = await Promise.all(
-    leaders.map(async (leader): Promise<readonly [string, string] | undefined> => {
-      const version = await readInstalledVersion(leader, searchRoots);
-      return version === undefined ? undefined : [leader, version];
-    }),
+    leaders.map(
+      async (leader): Promise<readonly [string, InstalledVersion] | undefined> => {
+        const installed = await readInstalledVersion(leader, searchRoots);
+        return installed === undefined ? undefined : [leader, installed];
+      },
+    ),
   );
 
   return Object.fromEntries(entries.filter((entry) => entry !== undefined));
