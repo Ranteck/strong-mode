@@ -244,7 +244,9 @@ describe("executeApplyPlan post-install lockstep alignment", (): void => {
 
   it("resolves vitest through yarn node when Node resolution fails (Yarn PnP)", async (): Promise<void> => {
     const tempDir = await createInstalledProject();
-    runCommandCaptureMock.mockReturnValue("4.1.0");
+    runCommandCaptureMock.mockReturnValue(
+      "yarn node v1.22.22\nstrong-mode-version=4.1.0\nDone in 0.03s.",
+    );
 
     const result = await execute(tempDir, true, { packageManager: "yarn" });
 
@@ -264,6 +266,23 @@ describe("executeApplyPlan post-install lockstep alignment", (): void => {
       { name: "@vitest/coverage-v8", version: "4.1.0", verified: true },
     ]);
   });
+
+  it.each([
+    ["only the yarn banner", "yarn node v1.22.22\nDone in 0.03s."],
+    ["a package without a version", "strong-mode-version=undefined"],
+  ])(
+    "defers coverage when yarn node prints %s",
+    async (_label: string, output: string): Promise<void> => {
+      const tempDir = await createInstalledProject();
+      runCommandCaptureMock.mockReturnValue(output);
+
+      const result = await execute(tempDir, true, { packageManager: "yarn" });
+
+      expect(runCommandMock).toHaveBeenCalledTimes(1);
+      expect(result.alignedLockstep).toEqual([]);
+      expect(result.deferredLockstep).toEqual(["@vitest/coverage-v8"]);
+    },
+  );
 
   it("adds coverage pinned to the installed vitest right after install, before the checks", async (): Promise<void> => {
     const tempDir = await createInstalledProject("3.2.4");

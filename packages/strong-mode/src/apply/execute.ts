@@ -140,6 +140,20 @@ const resolveWithNode = async (
   }
 };
 
+const YARN_VERSION_MARKER = "strong-mode-version=";
+const EXACT_VERSION = /^\d+\.\d+\.\d+(?:-[\da-z.-]+)?(?:\+[\da-z.-]+)?$/i;
+
+// Yarn Classic wraps `yarn node` output in a banner, so the version is read
+// from the marked line and only accepted when it is an exact version.
+const parseYarnVersionOutput = (output: string): string | undefined => {
+  const version = output
+    .split(/\r?\n/)
+    .find((line) => line.startsWith(YARN_VERSION_MARKER))
+    ?.slice(YARN_VERSION_MARKER.length)
+    .trim();
+  return version !== undefined && EXACT_VERSION.test(version) ? version : undefined;
+};
+
 // Yarn PnP has no node_modules; `yarn node` runs Node with the project's PnP loader.
 const resolveInstalledVersion = async (
   targetDir: string,
@@ -152,16 +166,16 @@ const resolveInstalledVersion = async (
   }
 
   try {
-    const version = runCommandCapture(
+    const output = runCommandCapture(
       "yarn",
       [
         "node",
         "-p",
-        `require(${JSON.stringify(`${packageName}/package.json`)}).version`,
+        `${JSON.stringify(YARN_VERSION_MARKER)} + require(${JSON.stringify(`${packageName}/package.json`)}).version`,
       ],
       targetDir,
     );
-    return version.length > 0 ? version : undefined;
+    return parseYarnVersionOutput(output);
   } catch {
     return undefined;
   }
