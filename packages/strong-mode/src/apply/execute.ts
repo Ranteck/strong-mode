@@ -372,8 +372,60 @@ const detectAddContext = async (
   };
 };
 
-// Replaced packages can only go once their config file is known to be the template's.
-// At a workspace root other packages may still rely on the root declaration.
+// ESLint configs other than the managed eslint.config.mjs. ESLint loads
+// eslint.config.js first; the others may still be selected with --config.
+const OTHER_ESLINT_CONFIGS = [
+  "eslint.config.js",
+  "eslint.config.cjs",
+  "eslint.config.ts",
+  "eslint.config.mts",
+  "eslint.config.cts",
+  ".eslintrc",
+  ".eslintrc.js",
+  ".eslintrc.cjs",
+  ".eslintrc.json",
+  ".eslintrc.yaml",
+  ".eslintrc.yml",
+] as const;
+const SELECTS_ESLINT_CONFIG = /(?:^|\s)(?:-c|--config)(?:\s|=)/u;
+
+const findOtherEslintConfigs = async (targetDir: string): Promise<string[]> => {
+  const exists = await Promise.all(
+    OTHER_ESLINT_CONFIGS.map((file) => fileExists(path.join(targetDir, file))),
+  );
+  return OTHER_ESLINT_CONFIGS.filter((_file, index) => exists[index] === true);
+};
+
+const warnIfEslintConfigShadowed = async (targetDir: string): Promise<void> => {
+  if (await fileExists(path.join(targetDir, "eslint.config.js"))) {
+    log.warn(
+      "eslint.config.js takes precedence over strong-mode's eslint.config.mjs, so ESLint keeps using it and the strong-mode rules do not apply. Merge them into eslint.config.js, or remove it.",
+    );
+  }
+};
+
+// Why a replaced package may still be loaded by something strong-mode does not
+// manage, if anything does.
+const replacedPackageConsumer = async (
+  next: PackageJsonLike,
+  targetDir: string,
+): Promise<string | undefined> => {
+  if ((await detectAddContext(targetDir)).workspaceRoot) {
+    return "other workspace packages may still use it";
+  }
+  const otherConfigs = await findOtherEslintConfigs(targetDir);
+  if (otherConfigs.length > 0) {
+    return `${otherConfigs.join(", ")} may still load it`;
+  }
+  const lintScript = next.scripts?.lint;
+  if (lintScript !== undefined && SELECTS_ESLINT_CONFIG.test(lintScript)) {
+    return `the "lint" script selects another ESLint config (${lintScript})`;
+  }
+  return undefined;
+};
+
+// Replaced packages can only go once their config file is known to be the
+// template's, and nothing else strong-mode does not manage may still load them.
 const withoutReplacedDependencies = async (
   next: PackageJsonLike,
   results: FileResults,
@@ -384,11 +436,10 @@ const withoutReplacedDependencies = async (
     return next;
   }
 
-  if ((await detectAddContext(options.targetDir)).workspaceRoot) {
+  const consumer = await replacedPackageConsumer(next, options.targetDir);
+  if (consumer !== undefined) {
     for (const name of replaced.dropped) {
-      log.warn(
-        `Keeping ${name}: other workspace packages may still use it; remove it once none do.`,
-      );
+      log.warn(`Keeping ${name}: ${consumer}. Remove it once nothing uses it.`);
     }
     return next;
   }
@@ -522,6 +573,8 @@ export const executeApplyPlan = async (
     deferredFiles: [],
     templateFiles: new Set<string>(),
   };
+
+  await warnIfEslintConfigShadowed(options.targetDir);
 
   for (const managedFile of plan.filesToCreate.filter(
     (file) => !isDependentFile(file),

@@ -342,12 +342,19 @@ describe("executeApplyPlan replaced dependencies", (): void => {
       readonly yes: boolean;
       readonly force: boolean;
     },
-    workspaceRoot = false,
+    setup: {
+      readonly workspaceRoot?: boolean;
+      readonly files?: Readonly<Record<string, string>>;
+      readonly lintScript?: string;
+    } = {},
   ): Promise<Record<string, string>> => {
     const tempDir = await mkdtemp(
       path.join(os.tmpdir(), "strong-mode-execute-replaced-"),
     );
-    if (workspaceRoot) {
+    for (const [file, content] of Object.entries(setup.files ?? {})) {
+      await writeFile(path.join(tempDir, file), content);
+    }
+    if (setup.workspaceRoot === true) {
       await writeFile(
         path.join(tempDir, "pnpm-workspace.yaml"),
         "packages:\n  - packages/*\n",
@@ -375,7 +382,10 @@ describe("executeApplyPlan replaced dependencies", (): void => {
         packageJsonPlan: {
           ...base.packageJsonPlan,
           current: currentPackageJson,
-          next: nextPackageJson,
+          next:
+            setup.lintScript === undefined
+              ? nextPackageJson
+              : { ...nextPackageJson, scripts: { lint: setup.lintScript } },
           summary: { ...base.packageJsonPlan.summary, changed: true },
         },
       },
@@ -405,7 +415,33 @@ describe("executeApplyPlan replaced dependencies", (): void => {
   });
 
   it("keeps the old plugin at a workspace root, where other packages may still use it", async (): Promise<void> => {
-    const devDependencies = await runWithEslintConfig({ yes: true, force: true }, true);
+    const devDependencies = await runWithEslintConfig(
+      { yes: true, force: true },
+      { workspaceRoot: true },
+    );
+
+    expect(devDependencies).toHaveProperty("eslint-plugin-eslint-comments");
+  });
+
+  it("keeps the old plugin while an eslint.config.js, which ESLint loads first, may import it", async (): Promise<void> => {
+    const devDependencies = await runWithEslintConfig(
+      { yes: true, force: true },
+      {
+        files: {
+          "eslint.config.js":
+            'import comments from "eslint-plugin-eslint-comments";\nexport default [];\n',
+        },
+      },
+    );
+
+    expect(devDependencies).toHaveProperty("eslint-plugin-eslint-comments");
+  });
+
+  it("keeps the old plugin when the lint script selects another config", async (): Promise<void> => {
+    const devDependencies = await runWithEslintConfig(
+      { yes: true, force: true },
+      { lintScript: "eslint -c eslint.legacy.mjs ." },
+    );
 
     expect(devDependencies).toHaveProperty("eslint-plugin-eslint-comments");
   });
