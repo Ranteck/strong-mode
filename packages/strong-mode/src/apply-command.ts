@@ -219,6 +219,15 @@ const summarizeResult = (
           ),
         ]
       : []),
+    ...(result.deferredFiles.length > 0
+      ? [
+          formatKeyValue(
+            "Deferred files",
+            `${result.deferredFiles.join(", ")} (resolve conflicts and re-run strong-mode)`,
+            "warning",
+          ),
+        ]
+      : []),
     formatKeyValue(
       "Package.json updated",
       result.packageJsonUpdated ? "yes" : "no",

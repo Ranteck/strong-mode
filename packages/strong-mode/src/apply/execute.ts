@@ -123,6 +123,7 @@ interface FileResults {
   readonly mergedFiles: string[];
   readonly overwrittenFiles: string[];
   readonly skippedFiles: string[];
+  readonly deferredFiles: string[];
   // Files whose final content is exactly the template's (created, overwritten or
   // already identical). Dependent files are only written for these.
   readonly templateFiles: Set<string>;
@@ -241,6 +242,14 @@ const applyDependentFiles = async (
 ): Promise<void> => {
   for (const managedFile of dependents) {
     const dependency = MANAGED_FILE_DEPENDENCIES[managedFile.relativePath];
+    if (dependency !== undefined && results.conflictedFiles.includes(dependency)) {
+      log.warn(
+        `Not adding ${managedFile.relativePath} yet: resolve the conflict in ${dependency} and re-run strong-mode.`,
+      );
+      results.deferredFiles.push(managedFile.relativePath);
+      continue;
+    }
+
     if (dependency !== undefined && !results.templateFiles.has(dependency)) {
       log.info(
         `Skipping ${managedFile.relativePath}: ${dependency} does not use the strong-mode template.`,
@@ -470,6 +479,7 @@ export const executeApplyPlan = async (
     mergedFiles: [],
     overwrittenFiles: [],
     skippedFiles: [],
+    deferredFiles: [],
     templateFiles: new Set<string>(),
   };
 
@@ -570,6 +580,7 @@ export const executeApplyPlan = async (
     alignedLockstep: lockstep.aligned,
     deferredLockstep: lockstep.deferred,
     mismatchedLockstep: lockstep.mismatched,
+    deferredFiles: results.deferredFiles,
     packageJsonUpdated,
     installRan,
     checksRan,

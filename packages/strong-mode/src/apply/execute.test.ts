@@ -146,15 +146,20 @@ describe("executeApplyPlan dependent files", (): void => {
   const run = async (
     tempDir: string,
     plan: Pick<ApplyPlan, "filesToCreate" | "conflictingFiles">,
-    flags: { readonly yes: boolean; readonly force: boolean },
+    flags: {
+      readonly yes: boolean;
+      readonly force: boolean;
+      readonly dryRun?: boolean;
+    },
   ): ReturnType<typeof executeApplyPlan> =>
     executeApplyPlan(
       { ...createPlan(tempDir), ...plan },
       {
         targetDir: tempDir,
         packageManager: "npm",
-        ...flags,
-        dryRun: false,
+        yes: flags.yes,
+        force: flags.force,
+        dryRun: flags.dryRun ?? false,
         backup: false,
         shouldInstall: false,
         shouldRunChecks: false,
@@ -167,7 +172,7 @@ describe("executeApplyPlan dependent files", (): void => {
       (): boolean => false,
     );
 
-  it("skips tests/env.test.ts when the project keeps its own src/env.ts", async (): Promise<void> => {
+  it("defers tests/env.test.ts while src/env.ts is left in conflict", async (): Promise<void> => {
     const tempDir = await createProject(PROJECT_ENV);
 
     const result = await run(
@@ -177,9 +182,30 @@ describe("executeApplyPlan dependent files", (): void => {
     );
 
     expect(result.conflictedFiles).toEqual(["src/env.ts"]);
-    expect(result.skippedFiles).toContain("tests/env.test.ts");
+    expect(result.deferredFiles).toEqual(["tests/env.test.ts"]);
+    expect(result.skippedFiles).not.toContain("tests/env.test.ts");
     expect(result.createdFiles).not.toContain("tests/env.test.ts");
     expect(await envTestExists(tempDir)).toBe(false);
+  });
+
+  it("reports dependents the same way during a dry run without writing them", async (): Promise<void> => {
+    const created = await createProject();
+    const createdResult = await run(
+      created,
+      { filesToCreate: [envFile(false), envTestFile], conflictingFiles: [] },
+      { yes: true, force: false, dryRun: true },
+    );
+    const conflicted = await createProject(PROJECT_ENV);
+    const conflictedResult = await run(
+      conflicted,
+      { filesToCreate: [envTestFile], conflictingFiles: [envFile(true)] },
+      { yes: true, force: false, dryRun: true },
+    );
+
+    expect(createdResult.createdFiles).toEqual(["src/env.ts", "tests/env.test.ts"]);
+    expect(await envTestExists(created)).toBe(false);
+    expect(conflictedResult.deferredFiles).toEqual(["tests/env.test.ts"]);
+    expect(await envTestExists(conflicted)).toBe(false);
   });
 
   it("writes tests/env.test.ts when src/env.ts is overwritten with the template", async (): Promise<void> => {

@@ -61,6 +61,8 @@ export interface ApplySummary {
   // Lockstep followers not added because install did not run or the installed
   // leader could not be resolved.
   readonly deferredLockstep: readonly string[];
+  // Dependent files held back because their dependency was left in conflict.
+  readonly deferredFiles: readonly string[];
   readonly packageJsonUpdated: boolean;
   readonly installRan: boolean;
   readonly checksRan: readonly string[];
