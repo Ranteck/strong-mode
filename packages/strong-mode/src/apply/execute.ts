@@ -387,6 +387,7 @@ const OTHER_ESLINT_CONFIGS = [
   ".eslintrc.yaml",
   ".eslintrc.yml",
 ] as const;
+const RUNS_ESLINT = /\beslint\b/u;
 const SELECTS_ESLINT_CONFIG = /(?:^|\s)(?:-c|--config)(?:\s|=)/u;
 
 const findOtherEslintConfigs = async (targetDir: string): Promise<string[]> => {
@@ -417,11 +418,14 @@ const replacedPackageConsumer = async (
   if (otherConfigs.length > 0) {
     return `${otherConfigs.join(", ")} may still load it`;
   }
-  const lintScript = next.scripts?.lint;
-  if (lintScript !== undefined && SELECTS_ESLINT_CONFIG.test(lintScript)) {
-    return `the "lint" script selects another ESLint config (${lintScript})`;
-  }
-  return undefined;
+  // Any script, not only `lint`: scripts delegate to each other, and keeping an
+  // extra package is cheaper than breaking the config that still loads it.
+  const selecting = Object.entries(next.scripts ?? {}).find(
+    ([, script]) => RUNS_ESLINT.test(script) && SELECTS_ESLINT_CONFIG.test(script),
+  );
+  return selecting === undefined
+    ? undefined
+    : `the "${selecting[0]}" script selects another ESLint config (${selecting[1]})`;
 };
 
 // Replaced packages can only go once their config file is known to be the

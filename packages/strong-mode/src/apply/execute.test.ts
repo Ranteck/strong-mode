@@ -344,7 +344,7 @@ describe("executeApplyPlan replaced dependencies", (): void => {
     setup: {
       readonly workspaceRoot?: boolean;
       readonly files?: Readonly<Record<string, string>>;
-      readonly lintScript?: string;
+      readonly scripts?: Readonly<Record<string, string>>;
     } = {},
   ): Promise<Record<string, string>> => {
     const tempDir = await mkdtemp(
@@ -382,9 +382,9 @@ describe("executeApplyPlan replaced dependencies", (): void => {
           ...base.packageJsonPlan,
           current: currentPackageJson,
           next:
-            setup.lintScript === undefined
+            setup.scripts === undefined
               ? nextPackageJson
-              : { ...nextPackageJson, scripts: { lint: setup.lintScript } },
+              : { ...nextPackageJson, scripts: { ...setup.scripts } },
           summary: { ...base.packageJsonPlan.summary, changed: true },
         },
       },
@@ -439,7 +439,21 @@ describe("executeApplyPlan replaced dependencies", (): void => {
   it("keeps the old plugin when the lint script selects another config", async (): Promise<void> => {
     const devDependencies = await runWithEslintConfig(
       { yes: true, force: true },
-      { lintScript: "eslint -c eslint.legacy.mjs ." },
+      { scripts: { lint: "eslint -c eslint.legacy.mjs ." } },
+    );
+
+    expect(devDependencies).toHaveProperty("eslint-plugin-eslint-comments");
+  });
+
+  it("keeps the old plugin when a script the lint script delegates to selects another config", async (): Promise<void> => {
+    const devDependencies = await runWithEslintConfig(
+      { yes: true, force: true },
+      {
+        scripts: {
+          lint: "npm run lint:code",
+          "lint:code": "eslint --config config/eslint.mjs .",
+        },
+      },
     );
 
     expect(devDependencies).toHaveProperty("eslint-plugin-eslint-comments");
