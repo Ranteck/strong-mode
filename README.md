@@ -55,6 +55,10 @@ npx strong-mode
 
 `strong-mode` compares 13 managed files from its template against your project. New files are created automatically. Existing managed files can be merged, skipped, overwritten, or written with Git-style conflict markers depending on the file type and flags you use. `package.json` is handled structurally, so scripts and dependencies are added without flattening the rest of your project config.
 
+- **Vitest coverage matches your Vitest.** `@vitest/coverage-v8` must be the exact same version as `vitest`. If the project already uses Vitest, the coverage package is added after install, pinned to the Vitest version your package manager actually installed. When dependencies are not installed (`--no-install`, or conflicts left to resolve), strong-mode prints the command to run instead.
+- **Replaced packages are cleaned up safely.** A package the template no longer ships (for example `eslint-plugin-eslint-comments`, replaced by `@eslint-community/eslint-plugin-eslint-comments`) is removed only when `eslint.config.mjs` ends up with the template content, so a config you kept still finds its plugin.
+- **ES modules.** A `package.json` without `"type"` is switched to `"type": "module"`, and strong-mode warns first, because CommonJS `.js` files (`require`/`module.exports`) stop working.
+
 ## Contributing
 
 ```bash
@@ -81,5 +85,5 @@ node packages/strong-mode/dist/cli.js --dry-run --yes
 
 - **CommonJS projects are not supported yet.** The template is ESM-only (`module: NodeNext` + `verbatimModuleSyntax`), so `strong-mode` stops before writing anything when `package.json` has `"type": "commonjs"`. Planned: a CommonJS-aware `tsconfig.json` (`verbatimModuleSyntax: false`, with `consistent-type-imports` keeping type-only imports explicit), and no longer switching a `package.json` without `"type"` to `"module"`.
 - **Dead-code detection assumes a `src/index.ts` entry.** `knip.config.ts` pins `entry` and `project`, so frameworks with other entry points (Next.js, Vite, Astro, …) get false "unused file" reports. Planned: drop the pinned entries and let knip's framework plugins detect them.
-- **Upgrading from an older strong-mode.** Re-running `strong-mode` on a project that already has an older version of the managed files treats every changed file as a conflict (Git-style markers with `--yes`). Planned: recognize previously shipped template versions and update them in place.
+- **Upgrading from an older strong-mode.** Re-running `strong-mode` on a project that already has an older version of the managed files treats every file that differs from the current template as a conflict (with `--yes`, `tsconfig.json`, `tsconfig.eslint.json` and `.gitignore` are merged structurally and the rest get Git-style markers), and replaced packages stay until `eslint.config.mjs` matches the template. Planned: recognize previously shipped template versions and update them in place.
 - **Runtime dependencies are merged per section.** Template `devDependencies` already skip packages the project declares in `dependencies`, but the reverse is not handled yet: a template runtime dependency (for example `zod`) that the project lists in `devDependencies` is added again to `dependencies`. Planned: treat a package declared in either section as present.
