@@ -1,7 +1,14 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 // src/env.ts validates on import, so each test stubs the environment first and
-// then loads a fresh copy of the module.
+// then loads a fresh copy of the module. Always read a named member of the dynamic
+// import: a bare `import()` counts as using every export, which would hide dead
+// exports in src/env.ts from knip.
+const loadEnv = async (): Promise<unknown> => {
+  const { env } = await import("../src/env.js");
+  return env;
+};
+
 describe("env", (): void => {
   beforeEach((): void => {
     vi.resetModules();
@@ -24,7 +31,7 @@ describe("env", (): void => {
     vi.stubEnv("NODE_ENV", "invalid");
     vi.stubEnv("LOG_LEVEL", "verbose");
 
-    await expect(import("../src/env.js")).rejects.toThrow(
+    await expect(loadEnv()).rejects.toThrow(
       /Invalid environment configuration:[\s\S]*env\.NODE_ENV[\s\S]*env\.LOG_LEVEL/u,
     );
   });
