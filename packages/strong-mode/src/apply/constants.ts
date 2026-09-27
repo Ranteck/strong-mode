@@ -59,8 +59,8 @@ export const MANAGED_TEMPLATE_FILES: readonly ManagedTemplateFile[] = [
 ];
 
 // Packages released in lockstep with a leader package that they require at the
-// exact same version as a peer. When the template adds the follower but the
-// project already declares the leader, reuse the project's leader range.
+// exact same version as a peer. When the project already declares the leader, the
+// follower is added after install, pinned to the installed leader version.
 export const LOCKSTEP_DEV_DEPENDENCIES: Readonly<Record<string, string>> = {
   "@vitest/coverage-v8": "vitest",
 };
