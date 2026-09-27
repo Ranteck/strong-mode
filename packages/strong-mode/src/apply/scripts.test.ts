@@ -18,6 +18,10 @@ describe("scriptRunsVitest", (): void => {
     "yarn test:unit",
     "bun run test:unit",
     "tsc --noEmit && npm run test:unit -- --reporter=dot",
+    "npm --silent run test:unit",
+    'npm run "test:unit"',
+    "yarn --silent test:unit",
+    "cross-env CI=1 npm run test:unit",
   ])("follows delegation to another script (%s)", (test: string): void => {
     expect(scriptRunsVitest({ test, "test:unit": "vitest run" })).toBe(true);
   });

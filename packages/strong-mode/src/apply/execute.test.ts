@@ -277,22 +277,21 @@ describe("executeApplyPlan dependent files", (): void => {
     },
   );
 
-  it("writes tests/env.test.ts when the test script delegates to a Vitest script", async (): Promise<void> => {
-    const tempDir = await createProject();
+  it.each(["npm run test:unit", "npm --silent run test:unit"])(
+    "writes tests/env.test.ts when the test script delegates to a Vitest script (%s)",
+    async (test: string): Promise<void> => {
+      const tempDir = await createProject();
 
-    const result = await run(
-      tempDir,
-      { filesToCreate: [envFile(false), envTestFile], conflictingFiles: [] },
-      {
-        yes: true,
-        force: false,
-        scripts: { test: "npm run test:unit", "test:unit": "vitest run" },
-      },
-    );
+      const result = await run(
+        tempDir,
+        { filesToCreate: [envFile(false), envTestFile], conflictingFiles: [] },
+        { yes: true, force: false, scripts: { test, "test:unit": "vitest run" } },
+      );
 
-    expect(result.createdFiles).toEqual(["src/env.ts", "tests/env.test.ts"]);
-    expect(await envTestExists(tempDir)).toBe(true);
-  });
+      expect(result.createdFiles).toEqual(["src/env.ts", "tests/env.test.ts"]);
+      expect(await envTestExists(tempDir)).toBe(true);
+    },
+  );
 
   it("writes tests/env.test.ts when src/env.ts is created", async (): Promise<void> => {
     const tempDir = await createProject();
