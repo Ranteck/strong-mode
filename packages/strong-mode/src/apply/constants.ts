@@ -72,6 +72,10 @@ export const MANAGED_FILE_DEPENDENCIES: Readonly<Record<string, string>> = {
   "tests/env.test.ts": "src/env.ts",
 };
 
+// Managed tests written for Vitest. They are only added when the project's "test"
+// script runs Vitest; another runner (Jest, node --test) would pick them up and fail.
+export const VITEST_TEST_FILES: ReadonlySet<string> = new Set(["tests/env.test.ts"]);
+
 // Packages the template stopped shipping, with their replacement and the managed
 // config file that loads them. The old package is removed only when that config
 // file ends up with the template content; otherwise the project's own config may

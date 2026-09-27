@@ -6,6 +6,7 @@ import {
   LOCKSTEP_DEV_DEPENDENCIES,
   MANAGED_FILE_DEPENDENCIES,
   REPLACED_DEV_DEPENDENCIES,
+  VITEST_TEST_FILES,
 } from "./constants.js";
 import { backupFile, fileExists, readTextIfExists, writeTextFile } from "./io.js";
 import { isMergeableManagedFile, mergeManagedFileContent } from "./merge.js";
@@ -235,12 +236,24 @@ const applyConflictingFile = async (
 const isDependentFile = (managedFile: ManagedFile): boolean =>
   MANAGED_FILE_DEPENDENCIES[managedFile.relativePath] !== undefined;
 
+const runsVitest = (testScript: string | undefined): boolean =>
+  testScript !== undefined && /\bvitest\b/u.test(testScript);
+
 const applyDependentFiles = async (
   dependents: readonly ManagedFile[],
+  testScript: string | undefined,
   options: ExecuteApplyPlanOptions,
   results: FileResults,
 ): Promise<void> => {
   for (const managedFile of dependents) {
+    if (VITEST_TEST_FILES.has(managedFile.relativePath) && !runsVitest(testScript)) {
+      log.info(
+        `Skipping ${managedFile.relativePath}: the project's "test" script (${testScript ?? "none"}) does not run Vitest.`,
+      );
+      results.skippedFiles.push(managedFile.relativePath);
+      continue;
+    }
+
     const dependency = MANAGED_FILE_DEPENDENCIES[managedFile.relativePath];
     if (dependency !== undefined && results.conflictedFiles.includes(dependency)) {
       log.warn(
@@ -527,6 +540,7 @@ export const executeApplyPlan = async (
   // Dependent files go last so the files they depend on are already resolved.
   await applyDependentFiles(
     [...plan.filesToCreate, ...plan.conflictingFiles].filter(isDependentFile),
+    plan.packageJsonPlan.next.scripts?.test,
     options,
     results,
   );

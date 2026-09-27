@@ -151,10 +151,22 @@ describe("executeApplyPlan dependent files", (): void => {
       readonly yes: boolean;
       readonly force: boolean;
       readonly dryRun?: boolean;
+      readonly testScript?: string;
     },
-  ): ReturnType<typeof executeApplyPlan> =>
-    executeApplyPlan(
-      { ...createPlan(tempDir), ...plan },
+  ): ReturnType<typeof executeApplyPlan> => {
+    const base = createPlan(tempDir);
+    return executeApplyPlan(
+      {
+        ...base,
+        ...plan,
+        packageJsonPlan: {
+          ...base.packageJsonPlan,
+          next: {
+            ...base.packageJsonPlan.next,
+            scripts: { test: flags.testScript ?? "vitest run" },
+          },
+        },
+      },
       {
         targetDir: tempDir,
         packageManager: "npm",
@@ -166,6 +178,7 @@ describe("executeApplyPlan dependent files", (): void => {
         shouldRunChecks: false,
       },
     );
+  };
 
   const envTestExists = async (tempDir: string): Promise<boolean> =>
     readFile(path.join(tempDir, "tests/env.test.ts"), "utf8").then(
@@ -246,6 +259,23 @@ describe("executeApplyPlan dependent files", (): void => {
     expect(result.createdFiles).toContain("tests/env.test.ts");
     expect(await envTestExists(tempDir)).toBe(true);
   });
+
+  it.each(["jest", "node --test tests/*.test.ts"])(
+    "skips tests/env.test.ts when the project's test script is %s, which would pick it up and fail",
+    async (testScript: string): Promise<void> => {
+      const tempDir = await createProject();
+
+      const result = await run(
+        tempDir,
+        { filesToCreate: [envFile(false), envTestFile], conflictingFiles: [] },
+        { yes: true, force: false, testScript },
+      );
+
+      expect(result.createdFiles).toEqual(["src/env.ts"]);
+      expect(result.skippedFiles).toContain("tests/env.test.ts");
+      expect(await envTestExists(tempDir)).toBe(false);
+    },
+  );
 
   it("writes tests/env.test.ts when src/env.ts is created", async (): Promise<void> => {
     const tempDir = await createProject();
