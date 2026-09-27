@@ -73,6 +73,23 @@ jobs:
           printf 'this is not valid JavaScript\n' > .next/build.js
           grep -qxF '.next/' .gitignore || echo '.next/' >> .gitignore
           npm run lint
+          # The dead-code gate must catch dead code, including outside src/ and in
+          # the managed src/env.ts.
+          mkdir -p lib
+          printf 'export const deadOutsideSrc = 1;\n' > lib/dead.ts
+          printf '\nexport const unusedExport = 1;\n' >> src/env.ts
+          if npm run dead-code > dead-code.log 2>&1; then
+            cat dead-code.log
+            echo "dead-code should fail when the project contains dead code" >&2
+            exit 1
+          fi
+          for expected in lib/dead.ts unusedExport; do
+            grep -q "$expected" dead-code.log || {
+              cat dead-code.log
+              echo "dead-code did not report $expected" >&2
+              exit 1
+            }
+          done
 
       - name: Scaffold smoke test (CommonJS is rejected)
         shell: bash
