@@ -223,6 +223,87 @@ describe("executeApplyPlan dependent files", (): void => {
   });
 });
 
+describe("executeApplyPlan replaced dependencies", (): void => {
+  const USER_ESLINT = "export default [{ rules: { semi: 'error' } }];\n";
+  const TEMPLATE_ESLINT = "export default [];\n";
+  const currentPackageJson = {
+    name: "fixture-project",
+    private: true,
+    devDependencies: { "eslint-plugin-eslint-comments": "^3.2.0" },
+  };
+  const nextPackageJson = {
+    ...currentPackageJson,
+    devDependencies: {
+      "@eslint-community/eslint-plugin-eslint-comments": "^4.8.1",
+      "eslint-plugin-eslint-comments": "^3.2.0",
+    },
+  };
+
+  const runWithEslintConfig = async (flags: {
+    readonly yes: boolean;
+    readonly force: boolean;
+  }): Promise<Record<string, string>> => {
+    const tempDir = await mkdtemp(
+      path.join(os.tmpdir(), "strong-mode-execute-replaced-"),
+    );
+    const packageJsonPath = path.join(tempDir, "package.json");
+    await writeFile(
+      packageJsonPath,
+      `${JSON.stringify(currentPackageJson, null, 2)}\n`,
+    );
+    await writeFile(path.join(tempDir, "eslint.config.mjs"), USER_ESLINT);
+    const base = createPlan(tempDir);
+
+    await executeApplyPlan(
+      {
+        ...base,
+        conflictingFiles: [
+          {
+            relativePath: "eslint.config.mjs",
+            sourceTemplatePath: "/template/eslint.config.mjs",
+            content: TEMPLATE_ESLINT,
+            exists: true,
+          },
+        ],
+        packageJsonPlan: {
+          ...base.packageJsonPlan,
+          current: currentPackageJson,
+          next: nextPackageJson,
+          summary: { ...base.packageJsonPlan.summary, changed: true },
+        },
+      },
+      {
+        targetDir: tempDir,
+        packageManager: "npm",
+        ...flags,
+        dryRun: false,
+        backup: false,
+        shouldInstall: false,
+        shouldRunChecks: false,
+      },
+    );
+
+    const written = JSON.parse(await readFile(packageJsonPath, "utf8")) as {
+      devDependencies: Record<string, string>;
+    };
+    return written.devDependencies;
+  };
+
+  it("removes the old plugin when eslint.config.mjs is replaced by the template", async (): Promise<void> => {
+    const devDependencies = await runWithEslintConfig({ yes: true, force: true });
+
+    expect(devDependencies).toEqual({
+      "@eslint-community/eslint-plugin-eslint-comments": "^4.8.1",
+    });
+  });
+
+  it("keeps the old plugin while eslint.config.mjs is left in conflict", async (): Promise<void> => {
+    const devDependencies = await runWithEslintConfig({ yes: true, force: false });
+
+    expect(devDependencies).toHaveProperty("eslint-plugin-eslint-comments");
+  });
+});
+
 describe("executeApplyPlan post-install lockstep alignment", (): void => {
   beforeEach((): void => {
     vi.clearAllMocks();

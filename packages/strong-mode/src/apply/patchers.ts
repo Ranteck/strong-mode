@@ -1,4 +1,4 @@
-import { LOCKSTEP_DEV_DEPENDENCIES } from "./constants.js";
+import { LOCKSTEP_DEV_DEPENDENCIES, REPLACED_DEV_DEPENDENCIES } from "./constants.js";
 import type {
   PackageJsonChangeSummary,
   PackageJsonLike,
@@ -176,6 +176,44 @@ const summarizeChanges = (
   postInstallLockstep: [],
   changed: JSON.stringify(before ?? {}) !== JSON.stringify(after),
 });
+
+const isDeclared = (packageJson: PackageJsonLike, name: string): boolean =>
+  packageJson.devDependencies?.[name] !== undefined ||
+  packageJson.dependencies?.[name] !== undefined;
+
+const withoutPackages = (
+  deps: Record<string, string>,
+  names: readonly string[],
+): Record<string, string> =>
+  Object.fromEntries(Object.entries(deps).filter(([name]) => !names.includes(name)));
+
+export const dropReplacedDependencies = (
+  next: PackageJsonLike,
+  templateFiles: ReadonlySet<string>,
+): { readonly next: PackageJsonLike; readonly dropped: readonly string[] } => {
+  const dropped = Object.entries(REPLACED_DEV_DEPENDENCIES)
+    .filter(
+      ([name, { replacement, configFile }]) =>
+        isDeclared(next, name) &&
+        isDeclared(next, replacement) &&
+        templateFiles.has(configFile),
+    )
+    .map(([name]) => name);
+
+  if (dropped.length === 0) {
+    return { next, dropped };
+  }
+
+  const cleaned: PackageJsonLike = { ...next };
+  if (next.dependencies !== undefined) {
+    cleaned.dependencies = withoutPackages(next.dependencies, dropped);
+  }
+  if (next.devDependencies !== undefined) {
+    cleaned.devDependencies = withoutPackages(next.devDependencies, dropped);
+  }
+
+  return { next: cleaned, dropped };
+};
 
 export const buildPackageJsonPlan = (
   packageJsonPath: string,

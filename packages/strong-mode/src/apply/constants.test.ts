@@ -2,7 +2,11 @@ import { readFileSync } from "node:fs";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
 import { resolveTemplateDir } from "../template.js";
-import { LOCKSTEP_DEV_DEPENDENCIES, MANAGED_TEMPLATE_FILES } from "./constants.js";
+import {
+  LOCKSTEP_DEV_DEPENDENCIES,
+  MANAGED_TEMPLATE_FILES,
+  REPLACED_DEV_DEPENDENCIES,
+} from "./constants.js";
 
 describe("LOCKSTEP_DEV_DEPENDENCIES", (): void => {
   it("pins every lockstep pair to the same range in the template", (): void => {
@@ -66,6 +70,25 @@ describe("MANAGED_TEMPLATE_FILES", (): void => {
     expect(referencedScripts.length).toBeGreaterThan(0);
     for (const script of referencedScripts) {
       expect(managedTargets).toContain(script);
+    }
+  });
+});
+
+describe("REPLACED_DEV_DEPENDENCIES", (): void => {
+  it("points at managed config files and replacements the template ships", (): void => {
+    const templatePackageJson = JSON.parse(
+      readFileSync(path.join(resolveTemplateDir(), "package.json"), "utf8"),
+    ) as { devDependencies: Record<string, string> };
+    const managedTargets = MANAGED_TEMPLATE_FILES.map(
+      (file) => file.targetRelativePath,
+    );
+
+    for (const [name, { replacement, configFile }] of Object.entries(
+      REPLACED_DEV_DEPENDENCIES,
+    )) {
+      expect(managedTargets).toContain(configFile);
+      expect(templatePackageJson.devDependencies[replacement]).toBeDefined();
+      expect(templatePackageJson.devDependencies[name]).toBeUndefined();
     }
   });
 });

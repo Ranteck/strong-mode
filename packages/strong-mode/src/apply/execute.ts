@@ -2,9 +2,14 @@ import { createRequire } from "node:module";
 import path from "node:path";
 import { log } from "@clack/prompts";
 import { runPostApplyChecks } from "./checks.js";
-import { LOCKSTEP_DEV_DEPENDENCIES, MANAGED_FILE_DEPENDENCIES } from "./constants.js";
+import {
+  LOCKSTEP_DEV_DEPENDENCIES,
+  MANAGED_FILE_DEPENDENCIES,
+  REPLACED_DEV_DEPENDENCIES,
+} from "./constants.js";
 import { backupFile, fileExists, readTextIfExists, writeTextFile } from "./io.js";
 import { isMergeableManagedFile, mergeManagedFileContent } from "./merge.js";
+import { dropReplacedDependencies } from "./patchers.js";
 import { type ConflictResolution, promptFileConflictResolution } from "./prompts.js";
 import type {
   AlignedLockstep,
@@ -65,14 +70,15 @@ type PackageJsonOutcome = "updated" | "unchanged" | "skipped";
 
 const applyPackageJson = async (
   plan: ApplyPlan,
+  next: PackageJsonLike,
   options: ExecuteApplyPlanOptions,
 ): Promise<PackageJsonOutcome> => {
-  if (!plan.packageJsonPlan.summary.changed) {
+  if (!plan.packageJsonPlan.summary.changed && next === plan.packageJsonPlan.next) {
     return "unchanged";
   }
 
   const packageJsonPath = path.join(options.targetDir, "package.json");
-  const nextSource = `${JSON.stringify(plan.packageJsonPlan.next, null, 2)}\n`;
+  const nextSource = `${JSON.stringify(next, null, 2)}\n`;
   const currentSource = await readTextIfExists(packageJsonPath);
 
   if (currentSource === nextSource) {
@@ -489,7 +495,17 @@ export const executeApplyPlan = async (
   const { createdFiles, conflictedFiles, mergedFiles, overwrittenFiles, skippedFiles } =
     results;
 
-  const packageJsonOutcome = await applyPackageJson(plan, options);
+  // Replaced packages can only go once their config file is known to be the template's.
+  const replaced = dropReplacedDependencies(
+    plan.packageJsonPlan.next,
+    results.templateFiles,
+  );
+  for (const name of replaced.dropped) {
+    log.info(
+      `Removing ${name}: replaced by ${REPLACED_DEV_DEPENDENCIES[name]?.replacement ?? "a newer package"}.`,
+    );
+  }
+  const packageJsonOutcome = await applyPackageJson(plan, replaced.next, options);
   let packageJsonUpdated = packageJsonOutcome === "updated";
 
   let installRan = false;
@@ -525,8 +541,8 @@ export const executeApplyPlan = async (
   let checksRan: readonly string[] = [];
   if (options.shouldRunChecks && conflictedFiles.length === 0 && !options.dryRun) {
     const packageJsonForChecks = packageJsonUpdated
-      ? plan.packageJsonPlan.next
-      : (plan.packageJsonPlan.current ?? plan.packageJsonPlan.next);
+      ? replaced.next
+      : (plan.packageJsonPlan.current ?? replaced.next);
     try {
       // runCommand is synchronous (spawnSync) — if refactored to async, add await here
       checksRan = runPostApplyChecks(

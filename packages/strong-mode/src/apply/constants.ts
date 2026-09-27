@@ -71,3 +71,16 @@ export const LOCKSTEP_DEV_DEPENDENCIES: Readonly<Record<string, string>> = {
 export const MANAGED_FILE_DEPENDENCIES: Readonly<Record<string, string>> = {
   "tests/env.test.ts": "src/env.ts",
 };
+
+// Packages the template stopped shipping, with their replacement and the managed
+// config file that loads them. The old package is removed only when that config
+// file ends up with the template content; otherwise the project's own config may
+// still import it.
+export const REPLACED_DEV_DEPENDENCIES: Readonly<
+  Record<string, { readonly replacement: string; readonly configFile: string }>
+> = {
+  "eslint-plugin-eslint-comments": {
+    replacement: "@eslint-community/eslint-plugin-eslint-comments",
+    configFile: "eslint.config.mjs",
+  },
+};

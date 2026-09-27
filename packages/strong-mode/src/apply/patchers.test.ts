@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildPackageJsonPlan } from "./patchers.js";
+import { buildPackageJsonPlan, dropReplacedDependencies } from "./patchers.js";
 import type { PackageJsonLike } from "./types.js";
 
 describe("buildPackageJsonPlan", (): void => {
@@ -168,5 +168,45 @@ describe("buildPackageJsonPlan", (): void => {
     expect(plan.next.version).toBe("0.1.0");
     expect(plan.next.type).toBe("module");
     expect(plan.next.private).toBe(true);
+  });
+});
+
+describe("dropReplacedDependencies", (): void => {
+  const next: PackageJsonLike = {
+    devDependencies: {
+      "@eslint-community/eslint-plugin-eslint-comments": "^4.8.1",
+      "eslint-plugin-eslint-comments": "^3.2.0",
+      vitest: "^4.1.8",
+    },
+  };
+
+  it("drops a replaced package when its config file ends up with the template", (): void => {
+    const result = dropReplacedDependencies(next, new Set(["eslint.config.mjs"]));
+
+    expect(result.dropped).toEqual(["eslint-plugin-eslint-comments"]);
+    expect(result.next.devDependencies).toEqual({
+      "@eslint-community/eslint-plugin-eslint-comments": "^4.8.1",
+      vitest: "^4.1.8",
+    });
+  });
+
+  it("keeps it while the project's own config may still import it", (): void => {
+    const result = dropReplacedDependencies(next, new Set<string>());
+
+    expect(result.dropped).toEqual([]);
+    expect(result.next).toBe(next);
+  });
+
+  it("keeps it when the replacement is not declared", (): void => {
+    const withoutReplacement: PackageJsonLike = {
+      devDependencies: { "eslint-plugin-eslint-comments": "^3.2.0" },
+    };
+
+    const result = dropReplacedDependencies(
+      withoutReplacement,
+      new Set(["eslint.config.mjs"]),
+    );
+
+    expect(result.dropped).toEqual([]);
   });
 });
