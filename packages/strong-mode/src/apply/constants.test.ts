@@ -52,6 +52,18 @@ describe("LOCKSTEP_DEV_DEPENDENCIES", (): void => {
 });
 
 describe("MANAGED_TEMPLATE_FILES", (): void => {
+  it("leaves knip entry and project detection to its defaults and framework plugins", async (): Promise<void> => {
+    const knipConfigModule = (await import(
+      path.join(resolveTemplateDir(), "knip.config.ts")
+    )) as { default: Record<string, unknown> };
+    const knipConfig = knipConfigModule.default;
+
+    expect(knipConfig).not.toHaveProperty("entry");
+    expect(knipConfig).not.toHaveProperty("project");
+    expect(knipConfig).not.toHaveProperty("ignore");
+    expect(knipConfig.ignoreExportsUsedInFile).toBe(false);
+  });
+
   it("includes the package-manager hook wrapper", (): void => {
     expect(MANAGED_TEMPLATE_FILES).toContainEqual({
       sourceRelativePath: "scripts/run-package-manager.sh",
