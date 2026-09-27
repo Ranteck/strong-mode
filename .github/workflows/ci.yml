@@ -38,6 +38,7 @@ jobs:
         run: |
           set -euo pipefail
           tarball="$(find "${GITHUB_WORKSPACE}/packages/strong-mode" -maxdepth 1 -name '*.tgz' | head -n 1)"
+          test -n "$tarball"
           mkdir -p /tmp/strong-mode-smoke
           cd /tmp/strong-mode-smoke
           npm init -y >/dev/null 2>&1
@@ -52,6 +53,7 @@ jobs:
         run: |
           set -euo pipefail
           tarball="$(find "${GITHUB_WORKSPACE}/packages/strong-mode" -maxdepth 1 -name '*.tgz' | head -n 1)"
+          test -n "$tarball"
           template="${GITHUB_WORKSPACE}/packages/scaffold-ultra/template"
           fixture=/tmp/strong-mode-scaffold
           mkdir -p "$fixture/src" "$fixture/tests"
@@ -63,19 +65,29 @@ jobs:
           npm pkg set type=module
           npm exec --yes --package="$tarball" strong-mode -- --yes
           npm run check
+          # Lint must type-check dot-directories (.storybook) and skip whatever git
+          # ignores (.next), so an unparsable ignored file must not fail it.
+          mkdir -p .storybook .next
+          printf 'const config = { stories: ["../src/**/*.stories.ts"] };\n\nexport default config;\n' > .storybook/main.ts
+          printf 'this is not valid JavaScript\n' > .next/build.js
+          grep -qxF '.next/' .gitignore || echo '.next/' >> .gitignore
+          npm run lint
 
       - name: Scaffold smoke test (CommonJS is rejected)
         shell: bash
         run: |
           set -euo pipefail
           tarball="$(find "${GITHUB_WORKSPACE}/packages/strong-mode" -maxdepth 1 -name '*.tgz' | head -n 1)"
+          test -n "$tarball"
           fixture=/tmp/strong-mode-cjs
           mkdir -p "$fixture"
           cd "$fixture"
           npm init -y >/dev/null 2>&1
           npm pkg set type=commonjs
-          if npm exec --yes --package="$tarball" strong-mode -- --yes; then
+          if output="$(npm exec --yes --package="$tarball" strong-mode -- --yes 2>&1)"; then
             echo "strong-mode should reject a CommonJS project" >&2
             exit 1
           fi
+          printf '%s\n' "$output"
+          grep -q "requires an ES module project" <<<"$output"
           test "$(ls -A)" = "package.json"
