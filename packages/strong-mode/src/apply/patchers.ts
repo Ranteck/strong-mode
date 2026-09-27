@@ -174,6 +174,7 @@ const summarizeChanges = (
   addedDevDependencies,
   updatedPrepareScript,
   postInstallLockstep: [],
+  setModuleType: false,
   changed: JSON.stringify(before ?? {}) !== JSON.stringify(after),
 });
 
@@ -267,6 +268,7 @@ export const buildPackageJsonPlan = (
       mergedScripts.updatedPrepareScript,
     ),
     postInstallLockstep: lockstep.postInstall,
+    setModuleType: current !== undefined && typeof current.type !== "string",
   };
 
   return {

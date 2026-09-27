@@ -51,6 +51,7 @@ describe("executeApplyPlan when package.json is skipped", (): void => {
           addedDevDependencies: [],
           updatedPrepareScript: false,
           postInstallLockstep: ["@vitest/coverage-v8"],
+          setModuleType: false,
           changed: true,
         },
       },

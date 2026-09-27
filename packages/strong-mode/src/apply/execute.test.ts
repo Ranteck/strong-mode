@@ -58,6 +58,7 @@ const createPlan = (targetDir: string): ApplyPlan => ({
       addedDevDependencies: [],
       updatedPrepareScript: false,
       postInstallLockstep: [],
+      setModuleType: false,
       changed: false,
     },
   },

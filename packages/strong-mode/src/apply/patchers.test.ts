@@ -161,6 +161,21 @@ describe("buildPackageJsonPlan", (): void => {
     });
   });
 
+  it("flags an existing package.json without type that becomes ESM", (): void => {
+    const plan = buildPackageJsonPlan("package.json", { name: "legacy" }, {}, "legacy");
+
+    expect(plan.next.type).toBe("module");
+    expect(plan.summary.setModuleType).toBe(true);
+  });
+
+  it("does not flag a package.json that already declares its type or a new project", (): void => {
+    const esm = buildPackageJsonPlan("package.json", { type: "module" }, {}, "demo");
+    const fresh = buildPackageJsonPlan("package.json", undefined, {}, "demo");
+
+    expect(esm.summary.setModuleType).toBe(false);
+    expect(fresh.summary.setModuleType).toBe(false);
+  });
+
   it("returns fallback name and module defaults when current is undefined", (): void => {
     const plan = buildPackageJsonPlan("package.json", undefined, {}, "my-app");
 

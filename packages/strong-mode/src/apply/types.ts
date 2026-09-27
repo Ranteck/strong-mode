@@ -27,6 +27,9 @@ export interface PackageJsonChangeSummary {
   // leader: they are added after install, pinned to the leader version the package
   // manager actually resolved.
   readonly postInstallLockstep: readonly string[];
+  // An existing package.json had no "type" and is switched to "module" (Node's
+  // default for such a package is CommonJS).
+  readonly setModuleType: boolean;
   readonly changed: boolean;
 }
 

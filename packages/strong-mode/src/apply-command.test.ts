@@ -130,6 +130,33 @@ describe("runApplyCommand", (): void => {
     );
   });
 
+  it("warns when a package.json without type is switched to ESM", async (): Promise<void> => {
+    const tempDir = await createExistingProject();
+    const packageJsonPath = path.join(tempDir, "package.json");
+    const parsed = JSON.parse(await readFile(packageJsonPath, "utf8")) as Record<
+      string,
+      unknown
+    >;
+    const withoutType = Object.fromEntries(
+      Object.entries(parsed).filter(([key]) => key !== "type"),
+    );
+    await writeFile(packageJsonPath, `${JSON.stringify(withoutType, null, 2)}\n`);
+
+    const lines = await runApplyCommand({
+      command: "apply",
+      cwd: tempDir,
+      packageManager: "npm",
+      install: false,
+      runChecks: false,
+      yes: true,
+      dryRun: true,
+      backup: false,
+      force: false,
+    });
+
+    expect(lines.map(stripAnsi).join("\n")).toContain('package.json had no "type"');
+  });
+
   it("rejects a CommonJS project before writing any file", async (): Promise<void> => {
     const tempDir = await createExistingProject();
     const packageJsonPath = path.join(tempDir, "package.json");

@@ -87,6 +87,9 @@ const resolveCheckDecision = async (
   return exitOnCancel(selected);
 };
 
+const MODULE_TYPE_WARNING =
+  'package.json had no "type"; strong-mode sets "type": "module", so CommonJS .js files (require/module.exports) will stop working.';
+
 const summarizePlan = (plan: ReturnType<typeof buildApplyPlan>): readonly string[] => [
   formatSectionTitle("Plan Summary"),
   formatKeyValue("Project name", plan.projectName, "info"),
@@ -113,6 +116,9 @@ const summarizePlan = (plan: ReturnType<typeof buildApplyPlan>): readonly string
       ? "warning"
       : "neutral",
   ),
+  ...(plan.packageJsonPlan.summary.setModuleType
+    ? [formatKeyValue("Module type", MODULE_TYPE_WARNING, "warning")]
+    : []),
   ...(plan.packageJsonPlan.summary.postInstallLockstep.length > 0
     ? [
         formatKeyValue(
@@ -267,6 +273,10 @@ export const runApplyCommand = async (
   );
 
   const plan = buildApplyPlan(targetDir, detection);
+  // Warn before anything is written, so a later failure cannot hide it.
+  if (plan.packageJsonPlan.summary.setModuleType) {
+    log.warn(MODULE_TYPE_WARNING);
+  }
   // Warn before anything is written or installed: if install or the checks fail
   // later, only the error would be printed and this explanation would be lost.
 
