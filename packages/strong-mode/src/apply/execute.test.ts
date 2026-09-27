@@ -1,17 +1,27 @@
-import { mkdtemp, mkdir, readFile, writeFile } from "node:fs/promises";
+import { mkdtemp, mkdir, readdir, readFile, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { ApplyPlan } from "./types.js";
 
-const { runCommandMock, runPostApplyChecksMock } = vi.hoisted(() => ({
-  runCommandMock: vi.fn(),
-  runPostApplyChecksMock: vi.fn(),
-}));
+const { runCommandMock, runCommandCaptureMock, runPostApplyChecksMock } = vi.hoisted(
+  () => ({
+    runCommandMock: vi.fn(),
+    runCommandCaptureMock: vi.fn(),
+    runPostApplyChecksMock: vi.fn(),
+  }),
+);
 
-vi.mock("../process.js", (): { runCommand: typeof runCommandMock } => ({
-  runCommand: runCommandMock,
-}));
+vi.mock(
+  "../process.js",
+  (): {
+    runCommand: typeof runCommandMock;
+    runCommandCapture: typeof runCommandCaptureMock;
+  } => ({
+    runCommand: runCommandMock,
+    runCommandCapture: runCommandCaptureMock,
+  }),
+);
 
 vi.mock("./checks.js", (): { runPostApplyChecks: typeof runPostApplyChecksMock } => ({
   runPostApplyChecks: runPostApplyChecksMock,
@@ -143,17 +153,117 @@ describe("executeApplyPlan post-install lockstep alignment", (): void => {
   const execute = async (
     tempDir: string,
     shouldInstall: boolean,
+    extra: {
+      readonly packageManager?: "npm" | "pnpm" | "yarn";
+      readonly backup?: boolean;
+    } = {},
   ): ReturnType<typeof executeApplyPlan> =>
     executeApplyPlan(planWithPostInstall(tempDir), {
       targetDir: tempDir,
-      packageManager: "npm",
+      packageManager: extra.packageManager ?? "npm",
       yes: true,
       force: false,
       dryRun: false,
-      backup: false,
+      backup: extra.backup ?? false,
       shouldInstall,
       shouldRunChecks: true,
     });
+
+  const writeInstalledCoverage = async (
+    tempDir: string,
+    version: string,
+  ): Promise<void> => {
+    await mkdir(path.join(tempDir, "node_modules/@vitest/coverage-v8"), {
+      recursive: true,
+    });
+    await writeFile(
+      path.join(tempDir, "node_modules/@vitest/coverage-v8/package.json"),
+      JSON.stringify({ name: "@vitest/coverage-v8", version }),
+    );
+  };
+
+  it("verifies the installed pair after adding coverage", async (): Promise<void> => {
+    const tempDir = await createInstalledProject("3.2.4");
+    await writeInstalledCoverage(tempDir, "3.2.4");
+
+    const result = await execute(tempDir, true);
+
+    expect(result.alignedLockstep).toEqual([
+      { name: "@vitest/coverage-v8", version: "3.2.4", verified: true },
+    ]);
+    expect(result.mismatchedLockstep).toEqual([]);
+  });
+
+  it("reports a mismatch instead of alignment when the installed pair differs", async (): Promise<void> => {
+    const tempDir = await createInstalledProject("3.2.4");
+    await writeInstalledCoverage(tempDir, "3.2.3");
+
+    const result = await execute(tempDir, true);
+
+    expect(result.alignedLockstep).toEqual([]);
+    expect(result.mismatchedLockstep).toEqual([
+      { name: "@vitest/coverage-v8", leaderVersion: "3.2.4", followerVersion: "3.2.3" },
+    ]);
+  });
+
+  it("opts into the workspace root when adding at a pnpm workspace root", async (): Promise<void> => {
+    const tempDir = await createInstalledProject("3.2.4");
+    await writeFile(
+      path.join(tempDir, "pnpm-workspace.yaml"),
+      "packages:\n  - packages/*\n",
+    );
+
+    await execute(tempDir, true, { packageManager: "pnpm" });
+
+    expect(runCommandMock).toHaveBeenNthCalledWith(
+      2,
+      "pnpm",
+      [
+        "add",
+        "--save-dev",
+        "--save-exact",
+        "--workspace-root",
+        "@vitest/coverage-v8@3.2.4",
+      ],
+      tempDir,
+      "inherit",
+    );
+  });
+
+  it("backs up package.json before adding coverage", async (): Promise<void> => {
+    const tempDir = await createInstalledProject("3.2.4");
+
+    await execute(tempDir, true, { backup: true });
+
+    expect(
+      (await readdir(tempDir)).some((name) =>
+        name.startsWith("package.json.strong-mode-backup."),
+      ),
+    ).toBe(true);
+  });
+
+  it("resolves vitest through yarn node when Node resolution fails (Yarn PnP)", async (): Promise<void> => {
+    const tempDir = await createInstalledProject();
+    runCommandCaptureMock.mockReturnValue("4.1.0");
+
+    const result = await execute(tempDir, true, { packageManager: "yarn" });
+
+    expect(runCommandCaptureMock).toHaveBeenCalledWith(
+      "yarn",
+      ["node", "-p", expect.stringContaining("vitest/package.json")],
+      tempDir,
+    );
+    expect(runCommandMock).toHaveBeenNthCalledWith(
+      2,
+      "yarn",
+      ["add", "--dev", "--exact", "@vitest/coverage-v8@4.1.0"],
+      tempDir,
+      "inherit",
+    );
+    expect(result.alignedLockstep).toEqual([
+      { name: "@vitest/coverage-v8", version: "4.1.0", verified: true },
+    ]);
+  });
 
   it("adds coverage pinned to the installed vitest right after install, before the checks", async (): Promise<void> => {
     const tempDir = await createInstalledProject("3.2.4");
@@ -179,7 +289,7 @@ describe("executeApplyPlan post-install lockstep alignment", (): void => {
       runPostApplyChecksMock.mock.invocationCallOrder[0] ?? 0,
     );
     expect(result.alignedLockstep).toEqual([
-      { name: "@vitest/coverage-v8", version: "3.2.4" },
+      { name: "@vitest/coverage-v8", version: "3.2.4", verified: false },
     ]);
     expect(result.deferredLockstep).toEqual([]);
   });

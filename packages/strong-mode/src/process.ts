@@ -27,3 +27,30 @@ export const runCommand = (
     );
   }
 };
+
+// Runs a command and returns its trimmed stdout (for small queries such as
+// `yarn node -p ...`). Throws on a spawn failure or a non-zero exit.
+export const runCommandCapture = (
+  command: string,
+  args: readonly string[],
+  cwd: string,
+): string => {
+  const result = spawn.sync(command, [...args], {
+    cwd,
+    stdio: ["ignore", "pipe", "ignore"],
+    encoding: "utf8",
+    shell: process.platform === "win32",
+  });
+
+  if (result.error != null) {
+    throw new Error(`Failed to start command: ${command} ${args.join(" ")}`, {
+      cause: result.error,
+    });
+  }
+
+  if (result.status !== 0) {
+    throw new Error(`Command failed: ${command} ${args.join(" ")}`);
+  }
+
+  return result.stdout.trim();
+};

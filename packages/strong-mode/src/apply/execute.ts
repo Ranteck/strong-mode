@@ -3,12 +3,22 @@ import path from "node:path";
 import { log } from "@clack/prompts";
 import { runPostApplyChecks } from "./checks.js";
 import { LOCKSTEP_DEV_DEPENDENCIES } from "./constants.js";
-import { backupFile, readTextIfExists, writeTextFile } from "./io.js";
+import { backupFile, fileExists, readTextIfExists, writeTextFile } from "./io.js";
 import { isMergeableManagedFile, mergeManagedFileContent } from "./merge.js";
 import { type ConflictResolution, promptFileConflictResolution } from "./prompts.js";
-import type { ApplyPlan, ApplySummary } from "./types.js";
-import { addDevDependencyCommand, installCommand } from "../package-manager.js";
-import { runCommand } from "../process.js";
+import type {
+  AlignedLockstep,
+  ApplyPlan,
+  ApplySummary,
+  MismatchedLockstep,
+  PackageJsonLike,
+} from "./types.js";
+import {
+  type AddDevDependencyContext,
+  addDevDependencyCommand,
+  installCommand,
+} from "../package-manager.js";
+import { runCommand, runCommandCapture } from "../process.js";
 import type { PackageManager } from "../types.js";
 
 export interface ExecuteApplyPlanOptions {
@@ -50,12 +60,14 @@ const buildConflictFileContent = (
     "",
   ].join("\n");
 
+type PackageJsonOutcome = "updated" | "unchanged" | "skipped";
+
 const applyPackageJson = async (
   plan: ApplyPlan,
   options: ExecuteApplyPlanOptions,
-): Promise<boolean> => {
+): Promise<PackageJsonOutcome> => {
   if (!plan.packageJsonPlan.summary.changed) {
-    return false;
+    return "unchanged";
   }
 
   const packageJsonPath = path.join(options.targetDir, "package.json");
@@ -63,7 +75,7 @@ const applyPackageJson = async (
   const currentSource = await readTextIfExists(packageJsonPath);
 
   if (currentSource === nextSource) {
-    return false;
+    return "unchanged";
   }
 
   let decision: ConflictResolution;
@@ -84,7 +96,7 @@ const applyPackageJson = async (
   }
 
   if (decision === "skip") {
-    return false;
+    return "skipped";
   }
 
   if (options.backup && currentSource !== undefined && !options.dryRun) {
@@ -95,12 +107,12 @@ const applyPackageJson = async (
     await writeTextFile(packageJsonPath, nextSource);
   }
 
-  return true;
+  return "updated";
 };
 
-// The version the package manager installed for this package, resolved the way
-// Node resolves it from the project (hoisted installs, pnpm symlinks, aliases).
-const resolveInstalledVersion = async (
+// The version installed for this package, resolved the way Node resolves it from
+// the project (hoisted installs, pnpm symlinks, aliases).
+const resolveWithNode = async (
   targetDir: string,
   packageName: string,
 ): Promise<string | undefined> => {
@@ -128,37 +140,122 @@ const resolveInstalledVersion = async (
   }
 };
 
+// Yarn PnP has no node_modules; `yarn node` runs Node with the project's PnP loader.
+const resolveInstalledVersion = async (
+  targetDir: string,
+  packageName: string,
+  packageManager: ExecuteApplyPlanOptions["packageManager"],
+): Promise<string | undefined> => {
+  const viaNode = await resolveWithNode(targetDir, packageName);
+  if (viaNode !== undefined || packageManager !== "yarn") {
+    return viaNode;
+  }
+
+  try {
+    const version = runCommandCapture(
+      "yarn",
+      [
+        "node",
+        "-p",
+        `require(${JSON.stringify(`${packageName}/package.json`)}).version`,
+      ],
+      targetDir,
+    );
+    return version.length > 0 ? version : undefined;
+  } catch {
+    return undefined;
+  }
+};
+
+const readPackageJsonAt = async (dir: string): Promise<PackageJsonLike | undefined> => {
+  const source = await readTextIfExists(path.join(dir, "package.json"));
+  if (source === undefined) {
+    return undefined;
+  }
+  try {
+    return JSON.parse(source) as PackageJsonLike;
+  } catch {
+    return undefined;
+  }
+};
+
+const detectAddContext = async (
+  targetDir: string,
+): Promise<AddDevDependencyContext> => {
+  const packageJson = await readPackageJsonAt(targetDir);
+  const packageManagerField = packageJson?.packageManager;
+  return {
+    workspaceRoot:
+      (await fileExists(path.join(targetDir, "pnpm-workspace.yaml"))) ||
+      packageJson?.workspaces !== undefined,
+    yarnBerry:
+      (await fileExists(path.join(targetDir, ".yarnrc.yml"))) ||
+      (typeof packageManagerField === "string" &&
+        /^yarn@(?:[2-9]|[1-9]\d)/u.test(packageManagerField)),
+  };
+};
+
+interface LockstepState {
+  readonly installRan: boolean;
+  readonly packageJsonSkipped: boolean;
+  readonly packageJsonBackedUp: boolean;
+}
+
+interface LockstepResult {
+  readonly aligned: readonly AlignedLockstep[];
+  readonly deferred: readonly string[];
+  readonly mismatched: readonly MismatchedLockstep[];
+}
+
 // Adds lockstep followers after install, pinned to the leader version the package
-// manager actually resolved, so the pair can never mismatch.
+// manager actually resolved, then reads both installed versions back.
 const alignLockstepAfterInstall = async (
   followers: readonly string[],
   options: ExecuteApplyPlanOptions,
-  installRan: boolean,
-): Promise<{
-  readonly aligned: readonly { readonly name: string; readonly version: string }[];
-  readonly deferred: readonly string[];
-}> => {
-  const aligned: { readonly name: string; readonly version: string }[] = [];
+  state: LockstepState,
+): Promise<LockstepResult> => {
+  if (followers.length === 0) {
+    return { aligned: [], deferred: [], mismatched: [] };
+  }
+  if (!state.installRan || state.packageJsonSkipped) {
+    if (state.installRan) {
+      log.warn(
+        `${followers.join(", ")} not added: package.json was skipped. Add it at your vitest version if you want coverage.`,
+      );
+    }
+    return { aligned: [], deferred: [...followers], mismatched: [] };
+  }
+
+  const context = await detectAddContext(options.targetDir);
+  const aligned: AlignedLockstep[] = [];
   const deferred: string[] = [];
+  const mismatched: MismatchedLockstep[] = [];
+  let backedUp = state.packageJsonBackedUp;
 
   for (const follower of followers) {
     const leader = LOCKSTEP_DEV_DEPENDENCIES[follower] ?? follower;
-    const version = installRan
-      ? await resolveInstalledVersion(options.targetDir, leader)
-      : undefined;
+    const version = await resolveInstalledVersion(
+      options.targetDir,
+      leader,
+      options.packageManager,
+    );
     if (version === undefined) {
-      if (installRan) {
-        log.warn(
-          `Could not resolve the installed ${leader}, so ${follower} was not added. Add it at your ${leader} version: ${options.packageManager} ${addDevDependencyCommand(options.packageManager, `${follower}@<${leader} version>`).join(" ")}`,
-        );
-      }
+      log.warn(
+        `Could not resolve the installed ${leader}, so ${follower} was not added. Add it at your ${leader} version: ${options.packageManager} ${addDevDependencyCommand(options.packageManager, `${follower}@<${leader} version>`, context).join(" ")}`,
+      );
       deferred.push(follower);
       continue;
+    }
+
+    if (options.backup && !backedUp) {
+      await backupFile(path.join(options.targetDir, "package.json"));
+      backedUp = true;
     }
 
     const args = addDevDependencyCommand(
       options.packageManager,
       `${follower}@${version}`,
+      context,
     );
     try {
       // runCommand is synchronous (spawnSync) — if refactored to async, add await here
@@ -169,10 +266,41 @@ const alignLockstepAfterInstall = async (
         { cause: error },
       );
     }
-    aligned.push({ name: follower, version });
+
+    const installedFollower = await resolveInstalledVersion(
+      options.targetDir,
+      follower,
+      options.packageManager,
+    );
+    const installedLeader = await resolveInstalledVersion(
+      options.targetDir,
+      leader,
+      options.packageManager,
+    );
+    if (
+      installedFollower !== undefined &&
+      installedLeader !== undefined &&
+      installedFollower !== installedLeader
+    ) {
+      log.warn(
+        `${follower}@${installedFollower} is installed next to ${leader}@${installedLeader}, so the pair does not match. Check overrides or resolutions in package.json or your package manager config.`,
+      );
+      mismatched.push({
+        name: follower,
+        leaderVersion: installedLeader,
+        followerVersion: installedFollower,
+      });
+      continue;
+    }
+
+    aligned.push({
+      name: follower,
+      version,
+      verified: installedFollower !== undefined && installedLeader !== undefined,
+    });
   }
 
-  return { aligned, deferred };
+  return { aligned, deferred, mismatched };
 };
 
 export const executeApplyPlan = async (
@@ -287,7 +415,8 @@ export const executeApplyPlan = async (
     }
   }
 
-  const packageJsonUpdated = await applyPackageJson(plan, options);
+  const packageJsonOutcome = await applyPackageJson(plan, options);
+  let packageJsonUpdated = packageJsonOutcome === "updated";
 
   let installRan = false;
   if (options.shouldInstall && conflictedFiles.length === 0 && !options.dryRun) {
@@ -310,7 +439,14 @@ export const executeApplyPlan = async (
       `${followers.join(", ")} not added: install was skipped because of unresolved conflicts. Resolve them and re-run strong-mode.`,
     );
   }
-  const lockstep = await alignLockstepAfterInstall(followers, options, installRan);
+  const lockstep = await alignLockstepAfterInstall(followers, options, {
+    installRan,
+    packageJsonSkipped: packageJsonOutcome === "skipped",
+    packageJsonBackedUp: packageJsonUpdated && options.backup,
+  });
+  if (lockstep.aligned.length > 0 || lockstep.mismatched.length > 0) {
+    packageJsonUpdated = true;
+  }
 
   let checksRan: readonly string[] = [];
   if (options.shouldRunChecks && conflictedFiles.length === 0 && !options.dryRun) {
@@ -343,6 +479,7 @@ export const executeApplyPlan = async (
     skippedFiles,
     alignedLockstep: lockstep.aligned,
     deferredLockstep: lockstep.deferred,
+    mismatchedLockstep: lockstep.mismatched,
     packageJsonUpdated,
     installRan,
     checksRan,

@@ -186,9 +186,26 @@ const summarizeResult = (
           formatKeyValue(
             "Aligned after install",
             result.alignedLockstep
-              .map(({ name, version }) => `${name}@${version}`)
+              .map(
+                ({ name, version, verified }) =>
+                  `${name}@${version}${verified ? "" : " (unverified)"}`,
+              )
               .join(", "),
             "success",
+          ),
+        ]
+      : []),
+    ...(result.mismatchedLockstep.length > 0
+      ? [
+          formatKeyValue(
+            "Mismatched after install",
+            result.mismatchedLockstep
+              .map(
+                ({ name, followerVersion, leaderVersion }) =>
+                  `${name}@${followerVersion} vs ${leaderVersion} (check overrides or resolutions)`,
+              )
+              .join(", "),
+            "warning",
           ),
         ]
       : []),
