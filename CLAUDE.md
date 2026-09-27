@@ -107,7 +107,7 @@ Generated projects enforce extreme type safety:
 
 ## Key Implementation Details
 
-- **Cross-platform**: Uses `cross-spawn` for command execution with shell enabled on Windows
+- **Cross-platform**: Uses `cross-spawn` for command execution; `runCommand` enables the shell on Windows, while `runCommandCapture` (stdout queries such as `yarn node -p`) runs without it so cross-spawn escapes the quoted arguments for `cmd.exe`
 - **Interactive prompts**: Uses `@clack/prompts` with `exitOnCancel` wrapper (`src/ui.ts`)
 - **CLI flags**: `--yes`, `--dry-run`, `--force`, `--backup`, `--install/--no-install`, `--check/--no-check`, `--pm=<manager>`, `--cwd=<path>`
 - **Node requirement**: Requires Node.js >= 22

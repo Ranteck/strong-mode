@@ -30,6 +30,8 @@ export const runCommand = (
 
 // Runs a command and returns its trimmed stdout (for small queries such as
 // `yarn node -p ...`). Throws on a spawn failure or a non-zero exit.
+// No shell: cross-spawn escapes each argument for cmd.exe on Windows, while a
+// shell would join them unescaped and drop the quotes in the query.
 export const runCommandCapture = (
   command: string,
   args: readonly string[],
@@ -39,7 +41,6 @@ export const runCommandCapture = (
     cwd,
     stdio: ["ignore", "pipe", "ignore"],
     encoding: "utf8",
-    shell: process.platform === "win32",
   });
 
   if (result.error != null) {
