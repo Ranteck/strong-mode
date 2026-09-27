@@ -151,7 +151,7 @@ describe("executeApplyPlan dependent files", (): void => {
       readonly yes: boolean;
       readonly force: boolean;
       readonly dryRun?: boolean;
-      readonly testScript?: string;
+      readonly scripts?: Record<string, string>;
     },
   ): ReturnType<typeof executeApplyPlan> => {
     const base = createPlan(tempDir);
@@ -163,7 +163,7 @@ describe("executeApplyPlan dependent files", (): void => {
           ...base.packageJsonPlan,
           next: {
             ...base.packageJsonPlan.next,
-            scripts: { test: flags.testScript ?? "vitest run" },
+            scripts: flags.scripts ?? { test: "vitest run" },
           },
         },
       },
@@ -268,7 +268,7 @@ describe("executeApplyPlan dependent files", (): void => {
       const result = await run(
         tempDir,
         { filesToCreate: [envFile(false), envTestFile], conflictingFiles: [] },
-        { yes: true, force: false, testScript },
+        { yes: true, force: false, scripts: { test: testScript } },
       );
 
       expect(result.createdFiles).toEqual(["src/env.ts"]);
@@ -276,6 +276,23 @@ describe("executeApplyPlan dependent files", (): void => {
       expect(await envTestExists(tempDir)).toBe(false);
     },
   );
+
+  it("writes tests/env.test.ts when the test script delegates to a Vitest script", async (): Promise<void> => {
+    const tempDir = await createProject();
+
+    const result = await run(
+      tempDir,
+      { filesToCreate: [envFile(false), envTestFile], conflictingFiles: [] },
+      {
+        yes: true,
+        force: false,
+        scripts: { test: "npm run test:unit", "test:unit": "vitest run" },
+      },
+    );
+
+    expect(result.createdFiles).toEqual(["src/env.ts", "tests/env.test.ts"]);
+    expect(await envTestExists(tempDir)).toBe(true);
+  });
 
   it("writes tests/env.test.ts when src/env.ts is created", async (): Promise<void> => {
     const tempDir = await createProject();

@@ -11,6 +11,7 @@ import {
 import { backupFile, fileExists, readTextIfExists, writeTextFile } from "./io.js";
 import { isMergeableManagedFile, mergeManagedFileContent } from "./merge.js";
 import { dropReplacedDependencies } from "./patchers.js";
+import { scriptRunsVitest } from "./scripts.js";
 import { type ConflictResolution, promptFileConflictResolution } from "./prompts.js";
 import type {
   AlignedLockstep,
@@ -236,19 +237,16 @@ const applyConflictingFile = async (
 const isDependentFile = (managedFile: ManagedFile): boolean =>
   MANAGED_FILE_DEPENDENCIES[managedFile.relativePath] !== undefined;
 
-const runsVitest = (testScript: string | undefined): boolean =>
-  testScript !== undefined && /\bvitest\b/u.test(testScript);
-
 const applyDependentFiles = async (
   dependents: readonly ManagedFile[],
-  testScript: string | undefined,
+  scripts: PackageJsonLike["scripts"],
   options: ExecuteApplyPlanOptions,
   results: FileResults,
 ): Promise<void> => {
   for (const managedFile of dependents) {
-    if (VITEST_TEST_FILES.has(managedFile.relativePath) && !runsVitest(testScript)) {
+    if (VITEST_TEST_FILES.has(managedFile.relativePath) && !scriptRunsVitest(scripts)) {
       log.info(
-        `Skipping ${managedFile.relativePath}: the project's "test" script (${testScript ?? "none"}) does not run Vitest.`,
+        `Skipping ${managedFile.relativePath}: the project's "test" script (${scripts?.test ?? "none"}) does not run Vitest.`,
       );
       results.skippedFiles.push(managedFile.relativePath);
       continue;
@@ -540,7 +538,7 @@ export const executeApplyPlan = async (
   // Dependent files go last so the files they depend on are already resolved.
   await applyDependentFiles(
     [...plan.filesToCreate, ...plan.conflictingFiles].filter(isDependentFile),
-    plan.packageJsonPlan.next.scripts?.test,
+    plan.packageJsonPlan.next.scripts,
     options,
     results,
   );
