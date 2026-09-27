@@ -1,7 +1,5 @@
-import { satisfies, validRange } from "semver";
 import { LOCKSTEP_DEV_DEPENDENCIES } from "./constants.js";
 import type {
-  InstalledVersion,
   PackageJsonChangeSummary,
   PackageJsonLike,
   PackageJsonPlan,
@@ -123,71 +121,32 @@ const mergeDependencies = (
   };
 };
 
-// Picks the follower specifier for a project that declares the leader: the
-// installed leader version when it satisfies the declared range (lockfiles can
-// keep an older leader than the newest follower in range), else the declared
-// range. Non-semver specifiers (dist-tags, git, tarballs, paths, protocols)
-// cannot be reused for another package, so they return undefined.
-const resolveFollowerSpecifier = (
-  leaderRange: string | undefined,
-  installedLeader: InstalledVersion | undefined,
-): string | undefined => {
-  if (leaderRange === undefined) {
-    return undefined;
-  }
-
-  // A non-semver specifier (catalog:, workspace:, dist-tag, git, path) cannot be
-  // reused for another package; only the version it installed in this package is
-  // safe. A version inherited from a workspace root cannot be matched to it.
-  if (validRange(leaderRange) === null) {
-    return installedLeader?.inProject === true ? installedLeader.version : undefined;
-  }
-
-  if (
-    installedLeader !== undefined &&
-    satisfies(installedLeader.version, leaderRange)
-  ) {
-    return installedLeader.version;
-  }
-
-  return leaderRange;
-};
-
-const alignLockstepDevDependencies = (
+// When the project already declares a lockstep leader (vitest), the follower
+// (@vitest/coverage-v8) must match whatever version the package manager resolves
+// for it, which is only known after installing. Leave it out of package.json;
+// execute adds it after install, pinned to the installed leader version.
+const splitPostInstallLockstep = (
   devDependencies: Record<string, string>,
   addedDevDependencies: readonly string[],
   current: PackageJsonLike | undefined,
-  installedVersions: Readonly<Record<string, InstalledVersion>>,
 ): {
-  readonly aligned: Record<string, string>;
-  // Followers not added because the project declares the leader with a specifier
-  // that cannot be matched and nothing is installed: writing the template range
-  // would create a mismatched pair that a later re-run could not repair.
-  readonly deferred: readonly string[];
+  readonly devDependencies: Record<string, string>;
+  readonly postInstall: readonly string[];
 } => {
-  const aligned = { ...devDependencies };
-  const deferred: string[] = [];
-
-  for (const [follower, leader] of Object.entries(LOCKSTEP_DEV_DEPENDENCIES)) {
-    if (!addedDevDependencies.includes(follower)) {
-      continue;
-    }
-
-    const leaderRange =
-      current?.devDependencies?.[leader] ?? current?.dependencies?.[leader];
-    const specifier = resolveFollowerSpecifier(leaderRange, installedVersions[leader]);
-    if (specifier !== undefined) {
-      aligned[follower] = specifier;
-    } else if (leaderRange !== undefined) {
-      deferred.push(follower);
-    }
-  }
+  const postInstall = Object.entries(LOCKSTEP_DEV_DEPENDENCIES)
+    .filter(
+      ([follower, leader]) =>
+        addedDevDependencies.includes(follower) &&
+        (current?.devDependencies?.[leader] ?? current?.dependencies?.[leader]) !==
+          undefined,
+    )
+    .map(([follower]) => follower);
 
   return {
-    aligned: Object.fromEntries(
-      Object.entries(aligned).filter(([name]) => !deferred.includes(name)),
+    devDependencies: Object.fromEntries(
+      Object.entries(devDependencies).filter(([name]) => !postInstall.includes(name)),
     ),
-    deferred,
+    postInstall,
   };
 };
 
@@ -205,7 +164,7 @@ const summarizeChanges = (
   addedDependencies,
   addedDevDependencies,
   updatedPrepareScript,
-  deferredLockstep: [],
+  postInstallLockstep: [],
   changed: JSON.stringify(before ?? {}) !== JSON.stringify(after),
 });
 
@@ -214,7 +173,6 @@ export const buildPackageJsonPlan = (
   current: PackageJsonLike | undefined,
   templatePackageJson: PackageJsonLike,
   fallbackName: string,
-  installedVersions: Readonly<Record<string, InstalledVersion>> = {},
 ): PackageJsonPlan => {
   const next = clonePackageJson(current);
   next.name = typeof current?.name === "string" ? current.name : fallbackName;
@@ -242,13 +200,12 @@ export const buildPackageJsonPlan = (
   );
 
   next.dependencies = mergedDependencies.merged;
-  const lockstep = alignLockstepDevDependencies(
+  const lockstep = splitPostInstallLockstep(
     mergedDevDependencies.merged,
     mergedDevDependencies.added,
     current,
-    installedVersions,
   );
-  next.devDependencies = lockstep.aligned;
+  next.devDependencies = lockstep.devDependencies;
 
   const summary: PackageJsonChangeSummary = {
     ...summarizeChanges(
@@ -257,10 +214,12 @@ export const buildPackageJsonPlan = (
       mergedScripts.addedScripts,
       mergedScripts.updatedScripts,
       mergedDependencies.added,
-      mergedDevDependencies.added.filter((name) => !lockstep.deferred.includes(name)),
+      mergedDevDependencies.added.filter(
+        (name) => !lockstep.postInstall.includes(name),
+      ),
       mergedScripts.updatedPrepareScript,
     ),
-    deferredLockstep: lockstep.deferred,
+    postInstallLockstep: lockstep.postInstall,
   };
 
   return {

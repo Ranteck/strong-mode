@@ -86,20 +86,6 @@ const resolveCheckDecision = async (
   return exitOnCancel(selected);
 };
 
-const warnAboutDeferredLockstep = (plan: ReturnType<typeof buildApplyPlan>): void => {
-  const current = plan.packageJsonPlan.current;
-  for (const follower of plan.packageJsonPlan.summary.deferredLockstep) {
-    const leader = LOCKSTEP_DEV_DEPENDENCIES[follower] ?? "its leader package";
-    const specifier =
-      current?.devDependencies?.[leader] ??
-      current?.dependencies?.[leader] ??
-      "unknown";
-    log.warn(
-      `${follower} not added: ${leader} is declared as "${specifier}" and this package has no installed version of ${leader} to match it to. Install dependencies and re-run strong-mode, or add ${follower} at your ${leader} version.`,
-    );
-  }
-};
-
 const summarizePlan = (plan: ReturnType<typeof buildApplyPlan>): readonly string[] => [
   formatSectionTitle("Plan Summary"),
   formatKeyValue("Project name", plan.projectName, "info"),
@@ -126,12 +112,17 @@ const summarizePlan = (plan: ReturnType<typeof buildApplyPlan>): readonly string
       ? "warning"
       : "neutral",
   ),
-  ...(plan.packageJsonPlan.summary.deferredLockstep.length > 0
+  ...(plan.packageJsonPlan.summary.postInstallLockstep.length > 0
     ? [
         formatKeyValue(
-          "Deferred dev dependencies",
-          `${plan.packageJsonPlan.summary.deferredLockstep.join(", ")} (install dependencies and re-run strong-mode)`,
-          "warning",
+          "After install",
+          plan.packageJsonPlan.summary.postInstallLockstep
+            .map(
+              (follower) =>
+                `${follower} (pinned to the installed ${LOCKSTEP_DEV_DEPENDENCIES[follower] ?? follower})`,
+            )
+            .join(", "),
+          "info",
         ),
       ]
     : []),
@@ -190,6 +181,26 @@ const summarizeResult = (
       result.overwrittenFiles.length > 0 ? "warning" : "neutral",
     ),
     formatKeyValue("Skipped files", String(result.skippedFiles.length), "neutral"),
+    ...(result.alignedLockstep.length > 0
+      ? [
+          formatKeyValue(
+            "Aligned after install",
+            result.alignedLockstep
+              .map(({ name, version }) => `${name}@${version}`)
+              .join(", "),
+            "success",
+          ),
+        ]
+      : []),
+    ...(!dryRun && result.deferredLockstep.length > 0
+      ? [
+          formatKeyValue(
+            "Deferred dev dependencies",
+            `${result.deferredLockstep.join(", ")} (install dependencies and re-run strong-mode)`,
+            "warning",
+          ),
+        ]
+      : []),
     formatKeyValue(
       "Package.json updated",
       result.packageJsonUpdated ? "yes" : "no",
@@ -229,7 +240,6 @@ export const runApplyCommand = async (
   const plan = buildApplyPlan(targetDir, detection);
   // Warn before anything is written or installed: if install or the checks fail
   // later, only the error would be printed and this explanation would be lost.
-  warnAboutDeferredLockstep(plan);
 
   const shouldInstall = await resolveInstallDecision(
     options.install,
@@ -238,6 +248,16 @@ export const runApplyCommand = async (
     packageManager,
   );
   const shouldRunChecks = await resolveCheckDecision(options.runChecks, options.yes);
+  // Warn before anything is written: if a later step fails, only the error would
+  // be printed and this explanation would be lost.
+  if (!shouldInstall && !options.dryRun) {
+    for (const follower of plan.packageJsonPlan.summary.postInstallLockstep) {
+      const leader = LOCKSTEP_DEV_DEPENDENCIES[follower] ?? follower;
+      log.warn(
+        `${follower} will not be added: it has to match the installed ${leader} and dependencies are not being installed. Install them and re-run strong-mode, or add ${follower} at your ${leader} version.`,
+      );
+    }
+  }
 
   const summary: string[] = [
     `${formatSectionTitle("Target")} ${formatPath(targetDir)}`,

@@ -41,3 +41,15 @@ export const packageManagerLabel = (packageManager: PackageManager): string =>
 export const installCommand = (): readonly string[] => ["install"];
 
 export const runScriptCommand = (script: string): readonly string[] => ["run", script];
+
+const ADD_EXACT_DEV_FLAGS: Readonly<Record<PackageManager, readonly string[]>> = {
+  npm: ["install", "--save-dev", "--save-exact"],
+  pnpm: ["add", "--save-dev", "--save-exact"],
+  yarn: ["add", "--dev", "--exact"],
+  bun: ["add", "--dev", "--exact"],
+};
+
+export const addDevDependencyCommand = (
+  packageManager: PackageManager,
+  spec: string,
+): readonly string[] => [...ADD_EXACT_DEV_FLAGS[packageManager], spec];

@@ -1,11 +1,13 @@
+import { createRequire } from "node:module";
 import path from "node:path";
 import { log } from "@clack/prompts";
 import { runPostApplyChecks } from "./checks.js";
+import { LOCKSTEP_DEV_DEPENDENCIES } from "./constants.js";
 import { backupFile, readTextIfExists, writeTextFile } from "./io.js";
 import { isMergeableManagedFile, mergeManagedFileContent } from "./merge.js";
 import { type ConflictResolution, promptFileConflictResolution } from "./prompts.js";
 import type { ApplyPlan, ApplySummary } from "./types.js";
-import { installCommand } from "../package-manager.js";
+import { addDevDependencyCommand, installCommand } from "../package-manager.js";
 import { runCommand } from "../process.js";
 import type { PackageManager } from "../types.js";
 
@@ -94,6 +96,83 @@ const applyPackageJson = async (
   }
 
   return true;
+};
+
+// The version the package manager installed for this package, resolved the way
+// Node resolves it from the project (hoisted installs, pnpm symlinks, aliases).
+const resolveInstalledVersion = async (
+  targetDir: string,
+  packageName: string,
+): Promise<string | undefined> => {
+  let manifestPath: string;
+  try {
+    manifestPath = createRequire(path.join(targetDir, "package.json")).resolve(
+      `${packageName}/package.json`,
+    );
+  } catch {
+    return undefined;
+  }
+
+  const source = await readTextIfExists(manifestPath);
+  if (source === undefined) {
+    return undefined;
+  }
+
+  try {
+    const manifest = JSON.parse(source) as { version?: unknown };
+    return typeof manifest.version === "string" && manifest.version.length > 0
+      ? manifest.version
+      : undefined;
+  } catch {
+    return undefined;
+  }
+};
+
+// Adds lockstep followers after install, pinned to the leader version the package
+// manager actually resolved, so the pair can never mismatch.
+const alignLockstepAfterInstall = async (
+  followers: readonly string[],
+  options: ExecuteApplyPlanOptions,
+  installRan: boolean,
+): Promise<{
+  readonly aligned: readonly { readonly name: string; readonly version: string }[];
+  readonly deferred: readonly string[];
+}> => {
+  const aligned: { readonly name: string; readonly version: string }[] = [];
+  const deferred: string[] = [];
+
+  for (const follower of followers) {
+    const leader = LOCKSTEP_DEV_DEPENDENCIES[follower] ?? follower;
+    const version = installRan
+      ? await resolveInstalledVersion(options.targetDir, leader)
+      : undefined;
+    if (version === undefined) {
+      if (installRan) {
+        log.warn(
+          `Could not resolve the installed ${leader}, so ${follower} was not added. Add it at your ${leader} version: ${options.packageManager} ${addDevDependencyCommand(options.packageManager, `${follower}@<${leader} version>`).join(" ")}`,
+        );
+      }
+      deferred.push(follower);
+      continue;
+    }
+
+    const args = addDevDependencyCommand(
+      options.packageManager,
+      `${follower}@${version}`,
+    );
+    try {
+      // runCommand is synchronous (spawnSync) — if refactored to async, add await here
+      runCommand(options.packageManager, args, options.targetDir, "inherit");
+    } catch (error: unknown) {
+      throw new Error(
+        `Adding ${follower}@${version} failed after install. Rerun \`${options.packageManager} ${args.join(" ")}\`.`,
+        { cause: error },
+      );
+    }
+    aligned.push({ name: follower, version });
+  }
+
+  return { aligned, deferred };
 };
 
 export const executeApplyPlan = async (
@@ -225,6 +304,14 @@ export const executeApplyPlan = async (
     }
   }
 
+  const followers = plan.packageJsonPlan.summary.postInstallLockstep;
+  if (!installRan && options.shouldInstall && !options.dryRun && followers.length > 0) {
+    log.warn(
+      `${followers.join(", ")} not added: install was skipped because of unresolved conflicts. Resolve them and re-run strong-mode.`,
+    );
+  }
+  const lockstep = await alignLockstepAfterInstall(followers, options, installRan);
+
   let checksRan: readonly string[] = [];
   if (options.shouldRunChecks && conflictedFiles.length === 0 && !options.dryRun) {
     const packageJsonForChecks = packageJsonUpdated
@@ -254,6 +341,8 @@ export const executeApplyPlan = async (
     mergedFiles,
     overwrittenFiles,
     skippedFiles,
+    alignedLockstep: lockstep.aligned,
+    deferredLockstep: lockstep.deferred,
     packageJsonUpdated,
     installRan,
     checksRan,

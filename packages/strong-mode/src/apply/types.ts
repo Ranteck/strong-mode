@@ -23,9 +23,10 @@ export interface PackageJsonChangeSummary {
   readonly addedDependencies: readonly string[];
   readonly addedDevDependencies: readonly string[];
   readonly updatedPrepareScript: boolean;
-  // Lockstep followers not added because the project's leader could not be matched
-  // (for example `catalog:` vitest with nothing installed); a re-run adds them.
-  readonly deferredLockstep: readonly string[];
+  // Lockstep followers left out of package.json because the project declares their
+  // leader: they are added after install, pinned to the leader version the package
+  // manager actually resolved.
+  readonly postInstallLockstep: readonly string[];
   readonly changed: boolean;
 }
 
@@ -51,15 +52,15 @@ export interface ApplySummary {
   readonly mergedFiles: readonly string[];
   readonly overwrittenFiles: readonly string[];
   readonly skippedFiles: readonly string[];
+  // Lockstep followers added after install at the installed leader version.
+  readonly alignedLockstep: readonly {
+    readonly name: string;
+    readonly version: string;
+  }[];
+  // Lockstep followers not added because install did not run or the installed
+  // leader could not be resolved.
+  readonly deferredLockstep: readonly string[];
   readonly packageJsonUpdated: boolean;
   readonly installRan: boolean;
   readonly checksRan: readonly string[];
-}
-
-// A lockstep leader found in node_modules. `inProject` is false when it was only
-// found in a parent directory (a workspace root), whose install may not match the
-// package's own resolution of a non-semver specifier such as `catalog:`.
-export interface InstalledVersion {
-  readonly version: string;
-  readonly inProject: boolean;
 }

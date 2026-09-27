@@ -19,12 +19,13 @@ export const buildApplyPlan = (
     detection.targetPackageJson,
     detection.templatePackageJson,
     detection.projectName,
-    detection.installedVersions,
   );
 
+  // Lockstep followers are added after install, so they require one too.
   const requiresInstall =
     packageJsonPlan.summary.addedDependencies.length > 0 ||
-    packageJsonPlan.summary.addedDevDependencies.length > 0;
+    packageJsonPlan.summary.addedDevDependencies.length > 0 ||
+    packageJsonPlan.summary.postInstallLockstep.length > 0;
 
   return {
     projectName: detection.projectName,

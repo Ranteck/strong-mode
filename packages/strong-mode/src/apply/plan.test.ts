@@ -6,7 +6,6 @@ describe("buildApplyPlan", (): void => {
   it("splits managed files into create and conflict groups", (): void => {
     const detection: ApplyDetection = {
       projectName: "demo",
-      installedVersions: {},
       targetPackageJson: {
         name: "demo",
       },
@@ -43,7 +42,6 @@ describe("buildApplyPlan", (): void => {
   it("sets requiresInstall true when template adds new dependencies", (): void => {
     const detection: ApplyDetection = {
       projectName: "demo",
-      installedVersions: {},
       targetPackageJson: { name: "demo", devDependencies: {} },
       templatePackageJson: { devDependencies: { eslint: "^9.0.0" } },
       managedFiles: [],
@@ -57,7 +55,6 @@ describe("buildApplyPlan", (): void => {
   it("sets requiresInstall false when target already has all template dependencies", (): void => {
     const detection: ApplyDetection = {
       projectName: "demo",
-      installedVersions: {},
       targetPackageJson: { name: "demo", devDependencies: { eslint: "^9.0.0" } },
       templatePackageJson: { devDependencies: { eslint: "^9.0.0" } },
       managedFiles: [],
