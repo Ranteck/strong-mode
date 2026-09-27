@@ -4,6 +4,7 @@ import { describe, expect, it } from "vitest";
 import { resolveTemplateDir } from "../template.js";
 import {
   LOCKSTEP_DEV_DEPENDENCIES,
+  MANAGED_FILE_DEPENDENCIES,
   MANAGED_TEMPLATE_FILES,
   REPLACED_DEV_DEPENDENCIES,
 } from "./constants.js";
@@ -143,6 +144,19 @@ describe("template ESLint config", (): void => {
 
     for (const specifier of imported) {
       expect(templatePackageJson.devDependencies).toHaveProperty([specifier]);
+    }
+  });
+});
+
+describe("MANAGED_FILE_DEPENDENCIES", (): void => {
+  it("only links managed files", (): void => {
+    const managedTargets = MANAGED_TEMPLATE_FILES.map(
+      (file) => file.targetRelativePath,
+    );
+
+    for (const [dependent, dependency] of Object.entries(MANAGED_FILE_DEPENDENCIES)) {
+      expect(managedTargets).toContain(dependent);
+      expect(managedTargets).toContain(dependency);
     }
   });
 });

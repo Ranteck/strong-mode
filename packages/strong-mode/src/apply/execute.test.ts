@@ -189,6 +189,30 @@ describe("executeApplyPlan dependent files", (): void => {
     expect(await envTestExists(tempDir)).toBe(false);
   });
 
+  it("treats the user's own tests/env.test.ts like any other managed file", async (): Promise<void> => {
+    const tempDir = await createProject();
+    await mkdir(path.join(tempDir, "tests"), { recursive: true });
+    await writeFile(
+      path.join(tempDir, "tests/env.test.ts"),
+      "// the user's own test\n",
+    );
+
+    const result = await run(
+      tempDir,
+      {
+        filesToCreate: [envFile(false)],
+        conflictingFiles: [{ ...envTestFile, exists: true }],
+      },
+      { yes: true, force: false },
+    );
+
+    expect(result.createdFiles).toEqual(["src/env.ts"]);
+    expect(result.conflictedFiles).toEqual(["tests/env.test.ts"]);
+    expect(await readFile(path.join(tempDir, "tests/env.test.ts"), "utf8")).toContain(
+      "<<<<<<< current project",
+    );
+  });
+
   it("reports dependents the same way during a dry run without writing them", async (): Promise<void> => {
     const created = await createProject();
     const createdResult = await run(
