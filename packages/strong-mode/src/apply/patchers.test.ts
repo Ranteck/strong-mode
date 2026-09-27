@@ -212,6 +212,18 @@ describe("dropReplacedDependencies", (): void => {
     expect(result.next).toBe(next);
   });
 
+  it("keeps it when it is a runtime dependency, which exported code may import", (): void => {
+    const runtime: PackageJsonLike = {
+      dependencies: { "eslint-plugin-eslint-comments": "^3.2.0" },
+      devDependencies: { "@eslint-community/eslint-plugin-eslint-comments": "^4.8.1" },
+    };
+
+    const result = dropReplacedDependencies(runtime, new Set(["eslint.config.mjs"]));
+
+    expect(result.dropped).toEqual([]);
+    expect(result.next).toBe(runtime);
+  });
+
   it("keeps it when the replacement is not declared", (): void => {
     const withoutReplacement: PackageJsonLike = {
       devDependencies: { "eslint-plugin-eslint-comments": "^3.2.0" },

@@ -361,6 +361,35 @@ const detectAddContext = async (
   };
 };
 
+// Replaced packages can only go once their config file is known to be the template's.
+// At a workspace root other packages may still rely on the root declaration.
+const withoutReplacedDependencies = async (
+  next: PackageJsonLike,
+  results: FileResults,
+  options: ExecuteApplyPlanOptions,
+): Promise<PackageJsonLike> => {
+  const replaced = dropReplacedDependencies(next, results.templateFiles);
+  if (replaced.dropped.length === 0) {
+    return next;
+  }
+
+  if ((await detectAddContext(options.targetDir)).workspaceRoot) {
+    for (const name of replaced.dropped) {
+      log.warn(
+        `Keeping ${name}: other workspace packages may still use it; remove it once none do.`,
+      );
+    }
+    return next;
+  }
+
+  for (const name of replaced.dropped) {
+    log.info(
+      `Removing ${name}: replaced by ${REPLACED_DEV_DEPENDENCIES[name]?.replacement ?? "a newer package"}.`,
+    );
+  }
+  return replaced.next;
+};
+
 interface LockstepState {
   readonly installRan: boolean;
   readonly packageJsonSkipped: boolean;
@@ -505,17 +534,12 @@ export const executeApplyPlan = async (
   const { createdFiles, conflictedFiles, mergedFiles, overwrittenFiles, skippedFiles } =
     results;
 
-  // Replaced packages can only go once their config file is known to be the template's.
-  const replaced = dropReplacedDependencies(
+  const nextPackageJson = await withoutReplacedDependencies(
     plan.packageJsonPlan.next,
-    results.templateFiles,
+    results,
+    options,
   );
-  for (const name of replaced.dropped) {
-    log.info(
-      `Removing ${name}: replaced by ${REPLACED_DEV_DEPENDENCIES[name]?.replacement ?? "a newer package"}.`,
-    );
-  }
-  const packageJsonOutcome = await applyPackageJson(plan, replaced.next, options);
+  const packageJsonOutcome = await applyPackageJson(plan, nextPackageJson, options);
   let packageJsonUpdated = packageJsonOutcome === "updated";
 
   let installRan = false;
@@ -551,8 +575,8 @@ export const executeApplyPlan = async (
   let checksRan: readonly string[] = [];
   if (options.shouldRunChecks && conflictedFiles.length === 0 && !options.dryRun) {
     const packageJsonForChecks = packageJsonUpdated
-      ? replaced.next
-      : (plan.packageJsonPlan.current ?? replaced.next);
+      ? nextPackageJson
+      : (plan.packageJsonPlan.current ?? nextPackageJson);
     try {
       // runCommand is synchronous (spawnSync) — if refactored to async, add await here
       checksRan = runPostApplyChecks(

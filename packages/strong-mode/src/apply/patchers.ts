@@ -192,28 +192,26 @@ export const dropReplacedDependencies = (
   next: PackageJsonLike,
   templateFiles: ReadonlySet<string>,
 ): { readonly next: PackageJsonLike; readonly dropped: readonly string[] } => {
+  // A runtime dependency may be imported by exported code (a shared config), so
+  // only a dev-only declaration is cleaned up.
   const dropped = Object.entries(REPLACED_DEV_DEPENDENCIES)
     .filter(
       ([name, { replacement, configFile }]) =>
-        isDeclared(next, name) &&
+        next.devDependencies?.[name] !== undefined &&
+        next.dependencies?.[name] === undefined &&
         isDeclared(next, replacement) &&
         templateFiles.has(configFile),
     )
     .map(([name]) => name);
 
-  if (dropped.length === 0) {
-    return { next, dropped };
+  if (dropped.length === 0 || next.devDependencies === undefined) {
+    return { next, dropped: [] };
   }
 
-  const cleaned: PackageJsonLike = { ...next };
-  if (next.dependencies !== undefined) {
-    cleaned.dependencies = withoutPackages(next.dependencies, dropped);
-  }
-  if (next.devDependencies !== undefined) {
-    cleaned.devDependencies = withoutPackages(next.devDependencies, dropped);
-  }
-
-  return { next: cleaned, dropped };
+  return {
+    next: { ...next, devDependencies: withoutPackages(next.devDependencies, dropped) },
+    dropped,
+  };
 };
 
 export const buildPackageJsonPlan = (

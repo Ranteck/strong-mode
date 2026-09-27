@@ -290,13 +290,22 @@ describe("executeApplyPlan replaced dependencies", (): void => {
     },
   };
 
-  const runWithEslintConfig = async (flags: {
-    readonly yes: boolean;
-    readonly force: boolean;
-  }): Promise<Record<string, string>> => {
+  const runWithEslintConfig = async (
+    flags: {
+      readonly yes: boolean;
+      readonly force: boolean;
+    },
+    workspaceRoot = false,
+  ): Promise<Record<string, string>> => {
     const tempDir = await mkdtemp(
       path.join(os.tmpdir(), "strong-mode-execute-replaced-"),
     );
+    if (workspaceRoot) {
+      await writeFile(
+        path.join(tempDir, "pnpm-workspace.yaml"),
+        "packages:\n  - packages/*\n",
+      );
+    }
     const packageJsonPath = path.join(tempDir, "package.json");
     await writeFile(
       packageJsonPath,
@@ -346,6 +355,12 @@ describe("executeApplyPlan replaced dependencies", (): void => {
     expect(devDependencies).toEqual({
       "@eslint-community/eslint-plugin-eslint-comments": "^4.8.1",
     });
+  });
+
+  it("keeps the old plugin at a workspace root, where other packages may still use it", async (): Promise<void> => {
+    const devDependencies = await runWithEslintConfig({ yes: true, force: true }, true);
+
+    expect(devDependencies).toHaveProperty("eslint-plugin-eslint-comments");
   });
 
   it("keeps the old plugin while eslint.config.mjs is left in conflict", async (): Promise<void> => {
