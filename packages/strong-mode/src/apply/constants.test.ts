@@ -1,5 +1,8 @@
 import { readFileSync } from "node:fs";
+import { mkdir, mkdtemp, writeFile } from "node:fs/promises";
+import os from "node:os";
 import path from "node:path";
+import ts from "typescript";
 import { describe, expect, it } from "vitest";
 import { resolveTemplateDir } from "../template.js";
 import {
@@ -108,19 +111,43 @@ describe("template ESLint config", (): void => {
     );
   });
 
-  it("includes dot-directories such as .storybook in the ESLint program", (): void => {
-    const tsconfigEslint = JSON.parse(readTemplate("tsconfig.eslint.json")) as {
-      include?: string[];
-    };
+  it("includes root and nested dot-directories in the ESLint program, but not node_modules", async (): Promise<void> => {
+    const projectDir = await mkdtemp(
+      path.join(os.tmpdir(), "strong-mode-tsconfig-eslint-"),
+    );
+    const files = [
+      ".storybook/main.ts",
+      "packages/web/.storybook/main.ts",
+      "src/index.ts",
+      "node_modules/.cache/cached.ts",
+      "packages/web/node_modules/.cache/cached.ts",
+    ];
+    for (const file of files) {
+      await mkdir(path.dirname(path.join(projectDir, file)), { recursive: true });
+      await writeFile(path.join(projectDir, file), "export {};\n");
+    }
+    await writeFile(
+      path.join(projectDir, "tsconfig.json"),
+      readTemplate("tsconfig.json"),
+    );
 
-    expect(tsconfigEslint.include).toEqual(
+    const parsed = ts.parseJsonConfigFileContent(
+      JSON.parse(readTemplate("tsconfig.eslint.json")),
+      ts.sys,
+      projectDir,
+    );
+    const included = parsed.fileNames.map((file) =>
+      path.relative(projectDir, file).split(path.sep).join("/"),
+    );
+
+    expect(included).toEqual(
       expect.arrayContaining([
-        ".*/**/*.ts",
-        ".*/**/*.tsx",
-        ".*/**/*.mts",
-        ".*/**/*.cts",
+        ".storybook/main.ts",
+        "packages/web/.storybook/main.ts",
+        "src/index.ts",
       ]),
     );
+    expect(included.filter((file) => file.includes("node_modules"))).toEqual([]);
   });
 
   it("respects .gitignore, lints JS without type information and lints TS scripts", (): void => {

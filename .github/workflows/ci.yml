@@ -65,10 +65,11 @@ jobs:
           npm pkg set type=module
           npm exec --yes --package="$tarball" strong-mode -- --yes
           npm run check
-          # Lint must type-check dot-directories (.storybook) and skip whatever git
-          # ignores (.next), so an unparsable ignored file must not fail it.
-          mkdir -p .storybook .next
+          # Lint must type-check dot-directories (.storybook, also nested) and skip
+          # whatever git ignores (.next), so an unparsable ignored file must not fail it.
+          mkdir -p .storybook packages/web/.storybook .next
           printf 'const config = { stories: ["../src/**/*.stories.ts"] };\n\nexport default config;\n' > .storybook/main.ts
+          cp .storybook/main.ts packages/web/.storybook/main.ts
           printf 'this is not valid JavaScript\n' > .next/build.js
           grep -qxF '.next/' .gitignore || echo '.next/' >> .gitignore
           npm run lint
