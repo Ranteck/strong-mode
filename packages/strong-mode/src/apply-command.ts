@@ -1,8 +1,9 @@
-import { confirm, select } from "@clack/prompts";
+import { confirm, log, select } from "@clack/prompts";
 import { stat } from "node:fs/promises";
 import path from "node:path";
 import process from "node:process";
 import { detectApplyInput } from "./apply/detect.js";
+import { LOCKSTEP_DEV_DEPENDENCIES } from "./apply/constants.js";
 import { executeApplyPlan } from "./apply/execute.js";
 import { buildApplyPlan } from "./apply/plan.js";
 import { detectPackageManager, packageManagerLabel } from "./package-manager.js";
@@ -85,6 +86,20 @@ const resolveCheckDecision = async (
   return exitOnCancel(selected);
 };
 
+const warnAboutDeferredLockstep = (plan: ReturnType<typeof buildApplyPlan>): void => {
+  const current = plan.packageJsonPlan.current;
+  for (const follower of plan.packageJsonPlan.summary.deferredLockstep) {
+    const leader = LOCKSTEP_DEV_DEPENDENCIES[follower] ?? "its leader package";
+    const specifier =
+      current?.devDependencies?.[leader] ??
+      current?.dependencies?.[leader] ??
+      "unknown";
+    log.warn(
+      `${follower} not added: ${leader} is declared as "${specifier}" and no installed version was found. Install dependencies and re-run strong-mode, or add ${follower} at your ${leader} version.`,
+    );
+  }
+};
+
 const summarizePlan = (plan: ReturnType<typeof buildApplyPlan>): readonly string[] => [
   formatSectionTitle("Plan Summary"),
   formatKeyValue("Project name", plan.projectName, "info"),
@@ -111,11 +126,11 @@ const summarizePlan = (plan: ReturnType<typeof buildApplyPlan>): readonly string
       ? "warning"
       : "neutral",
   ),
-  ...(plan.packageJsonPlan.summary.lockstepFallbacks.length > 0
+  ...(plan.packageJsonPlan.summary.deferredLockstep.length > 0
     ? [
         formatKeyValue(
-          "Lockstep fallback",
-          `${plan.packageJsonPlan.summary.lockstepFallbacks.join(", ")} keeps the template range; install dependencies and re-run to pin it to the installed version`,
+          "Deferred dev dependencies",
+          `${plan.packageJsonPlan.summary.deferredLockstep.join(", ")} (install dependencies and re-run strong-mode)`,
           "warning",
         ),
       ]
@@ -212,6 +227,9 @@ export const runApplyCommand = async (
 
   const detection = await detectApplyInput(targetDir, resolveTemplateDir());
   const plan = buildApplyPlan(targetDir, detection);
+  // Warn before anything is written or installed: if install or the checks fail
+  // later, only the error would be printed and this explanation would be lost.
+  warnAboutDeferredLockstep(plan);
 
   const shouldInstall = await resolveInstallDecision(
     options.install,

@@ -117,17 +117,40 @@ describe("buildPackageJsonPlan", (): void => {
       ["a GitHub shorthand", "vitest-dev/vitest#v3.2.0"],
       ["a relative tarball", "./vendor/vitest-3.2.0.tgz"],
       ["a dist-tag", "latest"],
+      ["a protocol specifier", "workspace:*"],
     ])(
-      "keeps the template range when vitest is %s",
+      "defers coverage instead of guessing when vitest is %s and not installed",
       (_label: string, specifier: string): void => {
         const current: PackageJsonLike = { devDependencies: { vitest: specifier } };
 
         const plan = buildPackageJsonPlan("package.json", current, template, "demo");
 
-        expect(plan.next.devDependencies?.["@vitest/coverage-v8"]).toBe("^4.1.8");
-        expect(plan.summary.lockstepFallbacks).toEqual(["@vitest/coverage-v8"]);
+        expect(plan.next.devDependencies).not.toHaveProperty("@vitest/coverage-v8");
+        expect(plan.summary.addedDevDependencies).not.toContain("@vitest/coverage-v8");
+        expect(plan.summary.deferredLockstep).toEqual(["@vitest/coverage-v8"]);
       },
     );
+
+    it("adds the deferred coverage pinned to vitest once it is installed", (): void => {
+      const first = buildPackageJsonPlan(
+        "package.json",
+        { devDependencies: { vitest: "catalog:" } },
+        template,
+        "demo",
+      );
+      const second = buildPackageJsonPlan(
+        "package.json",
+        first.next,
+        template,
+        "demo",
+        {
+          vitest: "3.2.4",
+        },
+      );
+
+      expect(second.next.devDependencies?.["@vitest/coverage-v8"]).toBe("3.2.4");
+      expect(second.summary.deferredLockstep).toEqual([]);
+    });
 
     it.each([["catalog:"], ["latest"], ["workspace:*"]])(
       "pins coverage to the installed vitest when vitest is declared as %s",
@@ -139,7 +162,7 @@ describe("buildPackageJsonPlan", (): void => {
         });
 
         expect(plan.next.devDependencies?.["@vitest/coverage-v8"]).toBe("3.2.4");
-        expect(plan.summary.lockstepFallbacks).toEqual([]);
+        expect(plan.summary.deferredLockstep).toEqual([]);
       },
     );
 
@@ -180,16 +203,6 @@ describe("buildPackageJsonPlan", (): void => {
 
       expect(plan.next.devDependencies?.["@vitest/coverage-v8"]).toBe("^2.0.0");
       expect(plan.summary.addedDevDependencies).not.toContain("@vitest/coverage-v8");
-    });
-
-    it("keeps the template range when vitest uses a protocol specifier", (): void => {
-      const current: PackageJsonLike = {
-        devDependencies: { vitest: "workspace:*" },
-      };
-
-      const plan = buildPackageJsonPlan("package.json", current, template, "demo");
-
-      expect(plan.next.devDependencies?.["@vitest/coverage-v8"]).toBe("^4.1.8");
     });
   });
 

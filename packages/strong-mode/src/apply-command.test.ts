@@ -126,7 +126,7 @@ describe("runApplyCommand", (): void => {
     });
 
     expect(lines.map(stripAnsi).join("\n")).toContain(
-      "Lockstep fallback: @vitest/coverage-v8",
+      "Deferred dev dependencies: @vitest/coverage-v8",
     );
   });
 

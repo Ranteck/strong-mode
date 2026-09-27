@@ -155,11 +155,13 @@ const alignLockstepDevDependencies = (
   installedVersions: Readonly<Record<string, string>>,
 ): {
   readonly aligned: Record<string, string>;
-  // Followers left on the template range although the project declares the leader.
-  readonly fallbacks: readonly string[];
+  // Followers not added because the project declares the leader with a specifier
+  // that cannot be matched and nothing is installed: writing the template range
+  // would create a mismatched pair that a later re-run could not repair.
+  readonly deferred: readonly string[];
 } => {
   const aligned = { ...devDependencies };
-  const fallbacks: string[] = [];
+  const deferred: string[] = [];
 
   for (const [follower, leader] of Object.entries(LOCKSTEP_DEV_DEPENDENCIES)) {
     if (!addedDevDependencies.includes(follower)) {
@@ -172,11 +174,16 @@ const alignLockstepDevDependencies = (
     if (specifier !== undefined) {
       aligned[follower] = specifier;
     } else if (leaderRange !== undefined) {
-      fallbacks.push(follower);
+      deferred.push(follower);
     }
   }
 
-  return { aligned, fallbacks };
+  return {
+    aligned: Object.fromEntries(
+      Object.entries(aligned).filter(([name]) => !deferred.includes(name)),
+    ),
+    deferred,
+  };
 };
 
 const summarizeChanges = (
@@ -193,7 +200,7 @@ const summarizeChanges = (
   addedDependencies,
   addedDevDependencies,
   updatedPrepareScript,
-  lockstepFallbacks: [],
+  deferredLockstep: [],
   changed: JSON.stringify(before ?? {}) !== JSON.stringify(after),
 });
 
@@ -245,10 +252,10 @@ export const buildPackageJsonPlan = (
       mergedScripts.addedScripts,
       mergedScripts.updatedScripts,
       mergedDependencies.added,
-      mergedDevDependencies.added,
+      mergedDevDependencies.added.filter((name) => !lockstep.deferred.includes(name)),
       mergedScripts.updatedPrepareScript,
     ),
-    lockstepFallbacks: lockstep.fallbacks,
+    deferredLockstep: lockstep.deferred,
   };
 
   return {
