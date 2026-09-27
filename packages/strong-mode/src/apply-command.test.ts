@@ -232,7 +232,7 @@ describe("runApplyCommand", (): void => {
     expect(packageJson.devDependencies.typescript).toBe("^5.9.3");
     expect(packageJson.devDependencies.eslint).toBeDefined();
     expect(packageJson.devDependencies.vitest).toBeDefined();
-    expect(packageJson.engines.node).toBe(">=22");
+    expect(packageJson.engines.node).toBe("^22.12.0 || ^24.0.0 || >=26.0.0");
 
     const parsedTsconfig = JSON.parse(tsconfig) as {
       compilerOptions?: Record<string, unknown>;

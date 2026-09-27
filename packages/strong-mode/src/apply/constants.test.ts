@@ -13,6 +13,15 @@ import {
 } from "./constants.js";
 
 describe("LOCKSTEP_DEV_DEPENDENCIES", (): void => {
+  it("declares vite, which Vitest 5 needs as a non-optional peer that Yarn does not install", (): void => {
+    const templatePackageJson = JSON.parse(
+      readFileSync(path.join(resolveTemplateDir(), "package.json"), "utf8"),
+    ) as { devDependencies: Record<string, string> };
+
+    expect(templatePackageJson.devDependencies.vitest).toBeDefined();
+    expect(templatePackageJson.devDependencies.vite).toBeDefined();
+  });
+
   it("pins every lockstep pair to the same range in the template", (): void => {
     const templatePackageJson = JSON.parse(
       readFileSync(path.join(resolveTemplateDir(), "package.json"), "utf8"),
