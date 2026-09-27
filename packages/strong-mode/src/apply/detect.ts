@@ -1,8 +1,9 @@
 import { readFile } from "node:fs/promises";
 import path from "node:path";
+import { log } from "@clack/prompts";
 import { valid } from "semver";
 import { LOCKSTEP_DEV_DEPENDENCIES, MANAGED_TEMPLATE_FILES } from "./constants.js";
-import { readTextIfExists } from "./io.js";
+import { fileExists, readTextIfExists } from "./io.js";
 import type { ManagedFile, PackageJsonLike } from "./types.js";
 import { renderTemplateContent, sanitizePackageName } from "../template.js";
 
@@ -58,18 +59,78 @@ export const readJsonIfExists = async <T extends object>(
   return parsed as T;
 };
 
-const readInstalledVersions = async (
+const PROJECT_ROOT_MARKERS: readonly string[] = [
+  "package-lock.json",
+  "pnpm-lock.yaml",
+  "yarn.lock",
+  "bun.lock",
+  "bun.lockb",
+  ".git",
+];
+
+// The project directory and its parents up to the first one that owns a lockfile
+// or .git (the workspace root), so hoisted installs are found without reading
+// node_modules that belong to an unrelated parent directory.
+const findSearchRoots = async (targetDir: string): Promise<readonly string[]> => {
+  const start = path.resolve(targetDir);
+  const roots: string[] = [];
+  let dir = start;
+  for (;;) {
+    roots.push(dir);
+    const markers = await Promise.all(
+      PROJECT_ROOT_MARKERS.map(
+        async (marker): Promise<boolean> => fileExists(path.join(dir, marker)),
+      ),
+    );
+    if (markers.includes(true)) {
+      return roots;
+    }
+
+    const parent = path.dirname(dir);
+    if (parent === dir) {
+      return [start];
+    }
+    dir = parent;
+  }
+};
+
+const readInstalledVersion = async (
+  leader: string,
+  searchRoots: readonly string[],
+): Promise<string | undefined> => {
+  for (const root of searchRoots) {
+    const manifestPath = path.join(root, "node_modules", leader, "package.json");
+    let manifest: { version?: unknown } | undefined;
+    try {
+      manifest = await readJsonIfExists<{ version?: unknown }>(manifestPath);
+    } catch (error: unknown) {
+      // The installed version is only a hint for pinning lockstep packages; a broken
+      // node_modules must not stop apply.
+      log.warn(
+        `Could not read the installed ${leader} (${error instanceof Error ? error.message : String(error)}); its lockstep packages will follow the declared range. Reinstall dependencies to fix.`,
+      );
+      return undefined;
+    }
+
+    if (manifest !== undefined) {
+      const version =
+        typeof manifest.version === "string" ? valid(manifest.version) : null;
+      return version ?? undefined;
+    }
+  }
+
+  return undefined;
+};
+
+export const readInstalledVersions = async (
   targetDir: string,
 ): Promise<Record<string, string>> => {
+  const searchRoots = await findSearchRoots(targetDir);
   const leaders = [...new Set(Object.values(LOCKSTEP_DEV_DEPENDENCIES))];
   const entries = await Promise.all(
     leaders.map(async (leader): Promise<readonly [string, string] | undefined> => {
-      const manifest = await readJsonIfExists<{ version?: unknown }>(
-        path.join(targetDir, "node_modules", leader, "package.json"),
-      );
-      const version =
-        typeof manifest?.version === "string" ? valid(manifest.version) : null;
-      return version === null ? undefined : [leader, version];
+      const version = await readInstalledVersion(leader, searchRoots);
+      return version === undefined ? undefined : [leader, version];
     }),
   );
 
