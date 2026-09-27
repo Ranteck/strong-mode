@@ -125,6 +125,21 @@ describe("buildPackageJsonPlan", (): void => {
         const plan = buildPackageJsonPlan("package.json", current, template, "demo");
 
         expect(plan.next.devDependencies?.["@vitest/coverage-v8"]).toBe("^4.1.8");
+        expect(plan.summary.lockstepFallbacks).toEqual(["@vitest/coverage-v8"]);
+      },
+    );
+
+    it.each([["catalog:"], ["latest"], ["workspace:*"]])(
+      "pins coverage to the installed vitest when vitest is declared as %s",
+      (specifier: string): void => {
+        const current: PackageJsonLike = { devDependencies: { vitest: specifier } };
+
+        const plan = buildPackageJsonPlan("package.json", current, template, "demo", {
+          vitest: "3.2.4",
+        });
+
+        expect(plan.next.devDependencies?.["@vitest/coverage-v8"]).toBe("3.2.4");
+        expect(plan.summary.lockstepFallbacks).toEqual([]);
       },
     );
 

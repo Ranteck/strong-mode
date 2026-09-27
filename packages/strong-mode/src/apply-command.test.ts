@@ -101,6 +101,35 @@ describe("runApplyCommand", (): void => {
     );
   });
 
+  it("warns when @vitest/coverage-v8 cannot follow the project's vitest", async (): Promise<void> => {
+    const tempDir = await createExistingProject();
+    const packageJsonPath = path.join(tempDir, "package.json");
+    const packageJson = JSON.parse(await readFile(packageJsonPath, "utf8")) as {
+      devDependencies: Record<string, string>;
+    };
+    packageJson.devDependencies = {
+      ...packageJson.devDependencies,
+      vitest: "catalog:",
+    };
+    await writeFile(packageJsonPath, `${JSON.stringify(packageJson, null, 2)}\n`);
+
+    const lines = await runApplyCommand({
+      command: "apply",
+      cwd: tempDir,
+      packageManager: "npm",
+      install: false,
+      runChecks: false,
+      yes: true,
+      dryRun: true,
+      backup: false,
+      force: false,
+    });
+
+    expect(lines.map(stripAnsi).join("\n")).toContain(
+      "Lockstep fallback: @vitest/coverage-v8",
+    );
+  });
+
   it("pins @vitest/coverage-v8 to the vitest version installed in the project", async (): Promise<void> => {
     const tempDir = await createExistingProject();
     const packageJsonPath = path.join(tempDir, "package.json");

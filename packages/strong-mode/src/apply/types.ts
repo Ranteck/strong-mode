@@ -23,6 +23,9 @@ export interface PackageJsonChangeSummary {
   readonly addedDependencies: readonly string[];
   readonly addedDevDependencies: readonly string[];
   readonly updatedPrepareScript: boolean;
+  // Lockstep followers kept on the template range although the project declares
+  // their leader (for example `catalog:` vitest with nothing installed).
+  readonly lockstepFallbacks: readonly string[];
   readonly changed: boolean;
 }
 

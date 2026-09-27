@@ -111,6 +111,15 @@ const summarizePlan = (plan: ReturnType<typeof buildApplyPlan>): readonly string
       ? "warning"
       : "neutral",
   ),
+  ...(plan.packageJsonPlan.summary.lockstepFallbacks.length > 0
+    ? [
+        formatKeyValue(
+          "Lockstep fallback",
+          `${plan.packageJsonPlan.summary.lockstepFallbacks.join(", ")} keeps the template range; install dependencies and re-run to pin it to the installed version`,
+          "warning",
+        ),
+      ]
+    : []),
 ];
 
 const summarizeResult = (

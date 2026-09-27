@@ -47,6 +47,7 @@ const createPlan = (targetDir: string): ApplyPlan => ({
       addedDependencies: [],
       addedDevDependencies: [],
       updatedPrepareScript: false,
+      lockstepFallbacks: [],
       changed: false,
     },
   },

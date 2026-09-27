@@ -131,8 +131,14 @@ const resolveFollowerSpecifier = (
   leaderRange: string | undefined,
   installedLeader: string | undefined,
 ): string | undefined => {
-  if (leaderRange === undefined || validRange(leaderRange) === null) {
+  if (leaderRange === undefined) {
     return undefined;
+  }
+
+  // A non-semver specifier (catalog:, workspace:, dist-tag, git, path) cannot be
+  // reused for another package; only the version it actually installed is safe.
+  if (validRange(leaderRange) === null) {
+    return installedLeader;
   }
 
   if (installedLeader !== undefined && satisfies(installedLeader, leaderRange)) {
@@ -147,20 +153,30 @@ const alignLockstepDevDependencies = (
   addedDevDependencies: readonly string[],
   current: PackageJsonLike | undefined,
   installedVersions: Readonly<Record<string, string>>,
-): Record<string, string> => {
+): {
+  readonly aligned: Record<string, string>;
+  // Followers left on the template range although the project declares the leader.
+  readonly fallbacks: readonly string[];
+} => {
   const aligned = { ...devDependencies };
+  const fallbacks: string[] = [];
 
   for (const [follower, leader] of Object.entries(LOCKSTEP_DEV_DEPENDENCIES)) {
-    const specifier = resolveFollowerSpecifier(
-      current?.devDependencies?.[leader] ?? current?.dependencies?.[leader],
-      installedVersions[leader],
-    );
-    if (addedDevDependencies.includes(follower) && specifier !== undefined) {
+    if (!addedDevDependencies.includes(follower)) {
+      continue;
+    }
+
+    const leaderRange =
+      current?.devDependencies?.[leader] ?? current?.dependencies?.[leader];
+    const specifier = resolveFollowerSpecifier(leaderRange, installedVersions[leader]);
+    if (specifier !== undefined) {
       aligned[follower] = specifier;
+    } else if (leaderRange !== undefined) {
+      fallbacks.push(follower);
     }
   }
 
-  return aligned;
+  return { aligned, fallbacks };
 };
 
 const summarizeChanges = (
@@ -177,6 +193,7 @@ const summarizeChanges = (
   addedDependencies,
   addedDevDependencies,
   updatedPrepareScript,
+  lockstepFallbacks: [],
   changed: JSON.stringify(before ?? {}) !== JSON.stringify(after),
 });
 
@@ -213,22 +230,26 @@ export const buildPackageJsonPlan = (
   );
 
   next.dependencies = mergedDependencies.merged;
-  next.devDependencies = alignLockstepDevDependencies(
+  const lockstep = alignLockstepDevDependencies(
     mergedDevDependencies.merged,
     mergedDevDependencies.added,
     current,
     installedVersions,
   );
+  next.devDependencies = lockstep.aligned;
 
-  const summary = summarizeChanges(
-    current,
-    next,
-    mergedScripts.addedScripts,
-    mergedScripts.updatedScripts,
-    mergedDependencies.added,
-    mergedDevDependencies.added,
-    mergedScripts.updatedPrepareScript,
-  );
+  const summary: PackageJsonChangeSummary = {
+    ...summarizeChanges(
+      current,
+      next,
+      mergedScripts.addedScripts,
+      mergedScripts.updatedScripts,
+      mergedDependencies.added,
+      mergedDevDependencies.added,
+      mergedScripts.updatedPrepareScript,
+    ),
+    lockstepFallbacks: lockstep.fallbacks,
+  };
 
   return {
     path: packageJsonPath,
