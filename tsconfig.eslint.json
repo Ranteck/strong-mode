@@ -4,6 +4,15 @@
     "noEmit": true,
     "rootDir": "."
   },
-  "include": ["**/*.ts", "**/*.tsx", "**/*.mts", "**/*.cts"],
+  "include": [
+    "**/*.ts",
+    "**/*.tsx",
+    "**/*.mts",
+    "**/*.cts",
+    ".*/**/*.ts",
+    ".*/**/*.tsx",
+    ".*/**/*.mts",
+    ".*/**/*.cts"
+  ],
   "exclude": ["node_modules", "dist", "coverage"]
 }

@@ -29,6 +29,7 @@
   },
   "devDependencies": {
     "@eslint-community/eslint-plugin-eslint-comments": "^4.8.1",
+    "@eslint/compat": "^2.1.1",
     "@eslint/js": "^9.22.0",
     "@types/node": "^22.13.10",
     "@vitest/coverage-v8": "^4.1.8",

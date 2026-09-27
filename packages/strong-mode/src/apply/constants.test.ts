@@ -92,3 +92,57 @@ describe("REPLACED_DEV_DEPENDENCIES", (): void => {
     }
   });
 });
+
+describe("template ESLint config", (): void => {
+  const readTemplate = (file: string): string =>
+    readFileSync(path.join(resolveTemplateDir(), file), "utf8");
+
+  it("points type-aware linting at a managed tsconfig", (): void => {
+    const project = /project:\s*"\.\/([^"]+)"/u.exec(
+      readTemplate("eslint.config.mjs"),
+    )?.[1];
+
+    expect(MANAGED_TEMPLATE_FILES.map((file) => file.targetRelativePath)).toContain(
+      project,
+    );
+  });
+
+  it("includes dot-directories such as .storybook in the ESLint program", (): void => {
+    const tsconfigEslint = JSON.parse(readTemplate("tsconfig.eslint.json")) as {
+      include?: string[];
+    };
+
+    expect(tsconfigEslint.include).toEqual(
+      expect.arrayContaining([
+        ".*/**/*.ts",
+        ".*/**/*.tsx",
+        ".*/**/*.mts",
+        ".*/**/*.cts",
+      ]),
+    );
+  });
+
+  it("respects .gitignore, lints JS without type information and lints TS scripts", (): void => {
+    const eslintConfig = readTemplate("eslint.config.mjs");
+
+    expect(eslintConfig).toContain("includeIgnoreFile(");
+    expect(eslintConfig).toContain("disableTypeChecked");
+    expect(eslintConfig).toContain('"scripts/**/*.{js,mjs,cjs}"');
+    expect(eslintConfig).not.toContain('"scripts/**",');
+  });
+
+  it("declares every package the ESLint config imports", (): void => {
+    const templatePackageJson = JSON.parse(readTemplate("package.json")) as {
+      devDependencies: Record<string, string>;
+    };
+    const imported = [...readTemplate("eslint.config.mjs").matchAll(/from "([^"]+)"/gu)]
+      .map((match) => match[1] ?? "")
+      .filter(
+        (specifier) => !specifier.startsWith("node:") && !specifier.startsWith("."),
+      );
+
+    for (const specifier of imported) {
+      expect(templatePackageJson.devDependencies).toHaveProperty([specifier]);
+    }
+  });
+});
