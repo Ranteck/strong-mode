@@ -33,7 +33,7 @@ const readJson = async <T extends object>(filePath: string): Promise<T> => {
   return parsed as T;
 };
 
-export const readJsonIfExists = async <T extends object>(
+const readJsonIfExists = async <T extends object>(
   filePath: string,
 ): Promise<T | undefined> => {
   const source = await readTextIfExists(filePath);

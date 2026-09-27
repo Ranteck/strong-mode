@@ -3,7 +3,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { isErrnoException } from "./errors.js";
 
-export const TEMPLATE_TOKEN_PROJECT_NAME = "__PROJECT_NAME__";
+const TEMPLATE_TOKEN_PROJECT_NAME = "__PROJECT_NAME__";
 
 export const sanitizePackageName = (input: string): string =>
   input
