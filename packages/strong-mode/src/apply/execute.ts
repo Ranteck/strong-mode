@@ -1,4 +1,3 @@
-import { createRequire } from "node:module";
 import path from "node:path";
 import { log } from "@clack/prompts";
 import { runPostApplyChecks } from "./checks.js";
@@ -8,6 +7,7 @@ import {
   REPLACED_DEV_DEPENDENCIES,
   VITEST_TEST_FILES,
 } from "./constants.js";
+import { readInstalledVersion } from "./installed.js";
 import { backupFile, fileExists, readTextIfExists, writeTextFile } from "./io.js";
 import { isMergeableManagedFile, mergeManagedFileContent } from "./merge.js";
 import { dropReplacedDependencies } from "./patchers.js";
@@ -273,36 +273,6 @@ const applyDependentFiles = async (
   }
 };
 
-// The version installed for this package, resolved the way Node resolves it from
-// the project (hoisted installs, pnpm symlinks, aliases).
-const resolveWithNode = async (
-  targetDir: string,
-  packageName: string,
-): Promise<string | undefined> => {
-  let manifestPath: string;
-  try {
-    manifestPath = createRequire(path.join(targetDir, "package.json")).resolve(
-      `${packageName}/package.json`,
-    );
-  } catch {
-    return undefined;
-  }
-
-  const source = await readTextIfExists(manifestPath);
-  if (source === undefined) {
-    return undefined;
-  }
-
-  try {
-    const manifest = JSON.parse(source) as { version?: unknown };
-    return typeof manifest.version === "string" && manifest.version.length > 0
-      ? manifest.version
-      : undefined;
-  } catch {
-    return undefined;
-  }
-};
-
 const YARN_VERSION_MARKER = "strong-mode-version=";
 const EXACT_VERSION = /^\d+\.\d+\.\d+(?:-[\da-z.-]+)?(?:\+[\da-z.-]+)?$/i;
 
@@ -323,7 +293,7 @@ const resolveInstalledVersion = async (
   packageName: string,
   packageManager: ExecuteApplyPlanOptions["packageManager"],
 ): Promise<string | undefined> => {
-  const viaNode = await resolveWithNode(targetDir, packageName);
+  const viaNode = await readInstalledVersion(targetDir, packageName);
   if (viaNode !== undefined || packageManager !== "yarn") {
     return viaNode;
   }
