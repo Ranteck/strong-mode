@@ -81,6 +81,64 @@ describe("buildPackageJsonPlan", (): void => {
     expect(plan.summary.updatedPrepareScript).toBe(false);
   });
 
+  describe("lockstep dev dependencies", (): void => {
+    const template: PackageJsonLike = {
+      devDependencies: {
+        "@vitest/coverage-v8": "^4.1.8",
+        vitest: "^4.1.8",
+      },
+    };
+
+    it.each([
+      ["a semver range", "^3.2.0"],
+      ["a catalog specifier", "catalog:"],
+      ["an npm alias", "npm:vitest@4.1.8"],
+      ["a dist-tag", "latest"],
+    ])(
+      "leaves coverage for after install when the project declares vitest as %s",
+      (_label: string, specifier: string): void => {
+        const current: PackageJsonLike = { devDependencies: { vitest: specifier } };
+
+        const plan = buildPackageJsonPlan("package.json", current, template, "demo");
+
+        expect(plan.next.devDependencies).toEqual({ vitest: specifier });
+        expect(plan.summary.addedDevDependencies).not.toContain("@vitest/coverage-v8");
+        expect(plan.summary.postInstallLockstep).toEqual(["@vitest/coverage-v8"]);
+      },
+    );
+
+    it("pairs coverage with a vitest declared in dependencies without duplicating it", (): void => {
+      const current: PackageJsonLike = { dependencies: { vitest: "~3.1.0" } };
+
+      const plan = buildPackageJsonPlan("package.json", current, template, "demo");
+
+      expect(plan.next.dependencies).toEqual({ vitest: "~3.1.0" });
+      expect(plan.next.devDependencies).toEqual({});
+      expect(plan.summary.addedDevDependencies).not.toContain("vitest");
+      expect(plan.summary.postInstallLockstep).toEqual(["@vitest/coverage-v8"]);
+    });
+
+    it("adds both packages from the template when the project has no vitest", (): void => {
+      const plan = buildPackageJsonPlan("package.json", {}, template, "demo");
+
+      expect(plan.next.devDependencies?.["@vitest/coverage-v8"]).toBe("^4.1.8");
+      expect(plan.next.devDependencies?.vitest).toBe("^4.1.8");
+      expect(plan.summary.postInstallLockstep).toEqual([]);
+    });
+
+    it("preserves an existing @vitest/coverage-v8", (): void => {
+      const current: PackageJsonLike = {
+        devDependencies: { "@vitest/coverage-v8": "^2.0.0", vitest: "^3.2.0" },
+      };
+
+      const plan = buildPackageJsonPlan("package.json", current, template, "demo");
+
+      expect(plan.next.devDependencies?.["@vitest/coverage-v8"]).toBe("^2.0.0");
+      expect(plan.summary.addedDevDependencies).not.toContain("@vitest/coverage-v8");
+      expect(plan.summary.postInstallLockstep).toEqual([]);
+    });
+  });
+
   it("returns fallback name and module defaults when current is undefined", (): void => {
     const plan = buildPackageJsonPlan("package.json", undefined, {}, "my-app");
 

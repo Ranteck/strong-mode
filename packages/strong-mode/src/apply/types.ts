@@ -23,6 +23,10 @@ export interface PackageJsonChangeSummary {
   readonly addedDependencies: readonly string[];
   readonly addedDevDependencies: readonly string[];
   readonly updatedPrepareScript: boolean;
+  // Lockstep followers left out of package.json because the project declares their
+  // leader: they are added after install, pinned to the leader version the package
+  // manager actually resolved.
+  readonly postInstallLockstep: readonly string[];
   readonly changed: boolean;
 }
 
@@ -48,7 +52,28 @@ export interface ApplySummary {
   readonly mergedFiles: readonly string[];
   readonly overwrittenFiles: readonly string[];
   readonly skippedFiles: readonly string[];
+  // Lockstep followers added after install at the installed leader version;
+  // `verified` means both installed versions were read back and match.
+  readonly alignedLockstep: readonly AlignedLockstep[];
+  // Followers whose installed version differs from the leader after adding them
+  // (for example because of overrides or resolutions).
+  readonly mismatchedLockstep: readonly MismatchedLockstep[];
+  // Lockstep followers not added because install did not run or the installed
+  // leader could not be resolved.
+  readonly deferredLockstep: readonly string[];
   readonly packageJsonUpdated: boolean;
   readonly installRan: boolean;
   readonly checksRan: readonly string[];
+}
+
+export interface AlignedLockstep {
+  readonly name: string;
+  readonly version: string;
+  readonly verified: boolean;
+}
+
+export interface MismatchedLockstep {
+  readonly name: string;
+  readonly leaderVersion: string;
+  readonly followerVersion: string;
 }

@@ -1,5 +1,23 @@
+import { readFileSync } from "node:fs";
+import path from "node:path";
 import { describe, expect, it } from "vitest";
-import { MANAGED_TEMPLATE_FILES } from "./constants.js";
+import { resolveTemplateDir } from "../template.js";
+import { LOCKSTEP_DEV_DEPENDENCIES, MANAGED_TEMPLATE_FILES } from "./constants.js";
+
+describe("LOCKSTEP_DEV_DEPENDENCIES", (): void => {
+  it("pins every lockstep pair to the same range in the template", (): void => {
+    const templatePackageJson = JSON.parse(
+      readFileSync(path.join(resolveTemplateDir(), "package.json"), "utf8"),
+    ) as { devDependencies: Record<string, string> };
+
+    for (const [follower, leader] of Object.entries(LOCKSTEP_DEV_DEPENDENCIES)) {
+      expect(templatePackageJson.devDependencies[follower]).toBeDefined();
+      expect(templatePackageJson.devDependencies[follower]).toBe(
+        templatePackageJson.devDependencies[leader],
+      );
+    }
+  });
+});
 
 describe("MANAGED_TEMPLATE_FILES", (): void => {
   it("includes the package-manager hook wrapper", (): void => {
@@ -7,5 +25,23 @@ describe("MANAGED_TEMPLATE_FILES", (): void => {
       sourceRelativePath: "scripts/run-package-manager.sh",
       targetRelativePath: "scripts/run-package-manager.sh",
     });
+  });
+
+  it("manages every local script referenced by template package.json and lefthook.yml", (): void => {
+    const referencedScripts = ["package.json", "lefthook.yml"].flatMap((file) =>
+      [
+        ...readFileSync(path.join(resolveTemplateDir(), file), "utf8").matchAll(
+          /\.\/(scripts\/[\w.-]+)/g,
+        ),
+      ].map((match) => match[1]),
+    );
+    const managedTargets = MANAGED_TEMPLATE_FILES.map(
+      (file) => file.targetRelativePath,
+    );
+
+    expect(referencedScripts.length).toBeGreaterThan(0);
+    for (const script of referencedScripts) {
+      expect(managedTargets).toContain(script);
+    }
   });
 });

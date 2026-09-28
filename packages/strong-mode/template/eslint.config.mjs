@@ -5,13 +5,13 @@ import sonarjs from "eslint-plugin-sonarjs";
 import security from "eslint-plugin-security";
 import perfectionist from "eslint-plugin-perfectionist";
 import unusedImports from "eslint-plugin-unused-imports";
-import eslintComments from "eslint-plugin-eslint-comments";
+import eslintComments from "@eslint-community/eslint-plugin-eslint-comments";
 
 export default tseslint.config(
   eslint.configs.recommended,
   ...tseslint.configs.strictTypeChecked,
   ...tseslint.configs.stylisticTypeChecked,
-  unicorn.configs.recommended,
+  unicorn.configs["flat/recommended"],
   sonarjs.configs.recommended,
   security.configs.recommended,
   {

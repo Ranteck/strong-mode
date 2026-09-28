@@ -1,8 +1,9 @@
-import { confirm, select } from "@clack/prompts";
+import { confirm, log, select } from "@clack/prompts";
 import { stat } from "node:fs/promises";
 import path from "node:path";
 import process from "node:process";
 import { detectApplyInput } from "./apply/detect.js";
+import { LOCKSTEP_DEV_DEPENDENCIES } from "./apply/constants.js";
 import { executeApplyPlan } from "./apply/execute.js";
 import { buildApplyPlan } from "./apply/plan.js";
 import { detectPackageManager, packageManagerLabel } from "./package-manager.js";
@@ -111,6 +112,20 @@ const summarizePlan = (plan: ReturnType<typeof buildApplyPlan>): readonly string
       ? "warning"
       : "neutral",
   ),
+  ...(plan.packageJsonPlan.summary.postInstallLockstep.length > 0
+    ? [
+        formatKeyValue(
+          "After install",
+          plan.packageJsonPlan.summary.postInstallLockstep
+            .map(
+              (follower) =>
+                `${follower} (pinned to the installed ${LOCKSTEP_DEV_DEPENDENCIES[follower] ?? follower})`,
+            )
+            .join(", "),
+          "info",
+        ),
+      ]
+    : []),
 ];
 
 const summarizeResult = (
@@ -166,6 +181,43 @@ const summarizeResult = (
       result.overwrittenFiles.length > 0 ? "warning" : "neutral",
     ),
     formatKeyValue("Skipped files", String(result.skippedFiles.length), "neutral"),
+    ...(result.alignedLockstep.length > 0
+      ? [
+          formatKeyValue(
+            "Aligned after install",
+            result.alignedLockstep
+              .map(
+                ({ name, version, verified }) =>
+                  `${name}@${version}${verified ? "" : " (unverified)"}`,
+              )
+              .join(", "),
+            "success",
+          ),
+        ]
+      : []),
+    ...(result.mismatchedLockstep.length > 0
+      ? [
+          formatKeyValue(
+            "Mismatched after install",
+            result.mismatchedLockstep
+              .map(
+                ({ name, followerVersion, leaderVersion }) =>
+                  `${name}@${followerVersion} vs ${leaderVersion} (check overrides or resolutions)`,
+              )
+              .join(", "),
+            "warning",
+          ),
+        ]
+      : []),
+    ...(!dryRun && result.deferredLockstep.length > 0
+      ? [
+          formatKeyValue(
+            "Deferred dev dependencies",
+            `${result.deferredLockstep.join(", ")} (install dependencies and re-run strong-mode)`,
+            "warning",
+          ),
+        ]
+      : []),
     formatKeyValue(
       "Package.json updated",
       result.packageJsonUpdated ? "yes" : "no",
@@ -203,6 +255,8 @@ export const runApplyCommand = async (
 
   const detection = await detectApplyInput(targetDir, resolveTemplateDir());
   const plan = buildApplyPlan(targetDir, detection);
+  // Warn before anything is written or installed: if install or the checks fail
+  // later, only the error would be printed and this explanation would be lost.
 
   const shouldInstall = await resolveInstallDecision(
     options.install,
@@ -211,6 +265,16 @@ export const runApplyCommand = async (
     packageManager,
   );
   const shouldRunChecks = await resolveCheckDecision(options.runChecks, options.yes);
+  // Warn before anything is written: if a later step fails, only the error would
+  // be printed and this explanation would be lost.
+  if (!shouldInstall && !options.dryRun) {
+    for (const follower of plan.packageJsonPlan.summary.postInstallLockstep) {
+      const leader = LOCKSTEP_DEV_DEPENDENCIES[follower] ?? follower;
+      log.warn(
+        `${follower} will not be added: it has to match the installed ${leader} and dependencies are not being installed. Install them and re-run strong-mode, or add ${follower} at your ${leader} version.`,
+      );
+    }
+  }
 
   const summary: string[] = [
     `${formatSectionTitle("Target")} ${formatPath(targetDir)}`,

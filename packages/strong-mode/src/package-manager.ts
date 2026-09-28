@@ -41,3 +41,44 @@ export const packageManagerLabel = (packageManager: PackageManager): string =>
 export const installCommand = (): readonly string[] => ["install"];
 
 export const runScriptCommand = (script: string): readonly string[] => ["run", script];
+
+const ADD_EXACT_DEV_FLAGS: Readonly<Record<PackageManager, readonly string[]>> = {
+  npm: ["install", "--save-dev", "--save-exact"],
+  pnpm: ["add", "--save-dev", "--save-exact"],
+  yarn: ["add", "--dev", "--exact"],
+  bun: ["add", "--dev", "--exact"],
+};
+
+export interface AddDevDependencyContext {
+  // The target directory is a workspace root (pnpm-workspace.yaml or "workspaces").
+  readonly workspaceRoot: boolean;
+  // Yarn 2+ (Berry), which has no workspace-root check and rejects its flag.
+  readonly yarnBerry: boolean;
+}
+
+// pnpm and Yarn Classic refuse to add to a workspace root without an explicit opt-in.
+const workspaceRootFlags = (
+  packageManager: PackageManager,
+  context: AddDevDependencyContext,
+): readonly string[] => {
+  if (!context.workspaceRoot) {
+    return [];
+  }
+  if (packageManager === "pnpm") {
+    return ["--workspace-root"];
+  }
+  if (packageManager === "yarn" && !context.yarnBerry) {
+    return ["--ignore-workspace-root-check"];
+  }
+  return [];
+};
+
+export const addDevDependencyCommand = (
+  packageManager: PackageManager,
+  spec: string,
+  context: AddDevDependencyContext = { workspaceRoot: false, yarnBerry: false },
+): readonly string[] => [
+  ...ADD_EXACT_DEV_FLAGS[packageManager],
+  ...workspaceRootFlags(packageManager, context),
+  spec,
+];

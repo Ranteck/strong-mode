@@ -101,6 +101,35 @@ describe("runApplyCommand", (): void => {
     );
   });
 
+  it("announces coverage alignment after install in a dry run", async (): Promise<void> => {
+    const tempDir = await createExistingProject();
+    const packageJsonPath = path.join(tempDir, "package.json");
+    const packageJson = JSON.parse(await readFile(packageJsonPath, "utf8")) as {
+      devDependencies: Record<string, string>;
+    };
+    packageJson.devDependencies = {
+      ...packageJson.devDependencies,
+      vitest: "catalog:",
+    };
+    await writeFile(packageJsonPath, `${JSON.stringify(packageJson, null, 2)}\n`);
+
+    const lines = await runApplyCommand({
+      command: "apply",
+      cwd: tempDir,
+      packageManager: "npm",
+      install: true,
+      runChecks: false,
+      yes: true,
+      dryRun: true,
+      backup: false,
+      force: false,
+    });
+
+    expect(lines.map(stripAnsi).join("\n")).toContain(
+      "After install: @vitest/coverage-v8 (pinned to the installed vitest)",
+    );
+  });
+
   it("merges package.json and tsconfig.json for an existing project", async (): Promise<void> => {
     const tempDir = await createExistingProject();
 

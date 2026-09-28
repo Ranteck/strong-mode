@@ -1,3 +1,4 @@
+import { LOCKSTEP_DEV_DEPENDENCIES } from "./constants.js";
 import type {
   PackageJsonChangeSummary,
   PackageJsonLike,
@@ -98,6 +99,7 @@ const mergeScripts = (
 const mergeDependencies = (
   current: Record<string, string> | undefined,
   template: Record<string, string> | undefined,
+  declaredElsewhere?: Record<string, string>,
 ): {
   readonly merged: Record<string, string>;
   readonly added: readonly string[];
@@ -107,7 +109,7 @@ const mergeDependencies = (
   const added: string[] = [];
 
   for (const [name, version] of Object.entries(templateDeps)) {
-    if (currentDeps[name] === undefined) {
+    if (currentDeps[name] === undefined && declaredElsewhere?.[name] === undefined) {
       currentDeps[name] = version;
       added.push(name);
     }
@@ -116,6 +118,35 @@ const mergeDependencies = (
   return {
     merged: currentDeps,
     added,
+  };
+};
+
+// When the project already declares a lockstep leader (vitest), the follower
+// (@vitest/coverage-v8) must match whatever version the package manager resolves
+// for it, which is only known after installing. Leave it out of package.json;
+// execute adds it after install, pinned to the installed leader version.
+const splitPostInstallLockstep = (
+  devDependencies: Record<string, string>,
+  addedDevDependencies: readonly string[],
+  current: PackageJsonLike | undefined,
+): {
+  readonly devDependencies: Record<string, string>;
+  readonly postInstall: readonly string[];
+} => {
+  const postInstall = Object.entries(LOCKSTEP_DEV_DEPENDENCIES)
+    .filter(
+      ([follower, leader]) =>
+        addedDevDependencies.includes(follower) &&
+        (current?.devDependencies?.[leader] ?? current?.dependencies?.[leader]) !==
+          undefined,
+    )
+    .map(([follower]) => follower);
+
+  return {
+    devDependencies: Object.fromEntries(
+      Object.entries(devDependencies).filter(([name]) => !postInstall.includes(name)),
+    ),
+    postInstall,
   };
 };
 
@@ -133,6 +164,7 @@ const summarizeChanges = (
   addedDependencies,
   addedDevDependencies,
   updatedPrepareScript,
+  postInstallLockstep: [],
   changed: JSON.stringify(before ?? {}) !== JSON.stringify(after),
 });
 
@@ -159,23 +191,36 @@ export const buildPackageJsonPlan = (
     current?.dependencies,
     templatePackageJson.dependencies,
   );
+  // A package the project already declares as a runtime dependency also serves
+  // development, so the template must not add a second, conflicting declaration.
   const mergedDevDependencies = mergeDependencies(
     current?.devDependencies,
     templatePackageJson.devDependencies,
+    current?.dependencies,
   );
 
   next.dependencies = mergedDependencies.merged;
-  next.devDependencies = mergedDevDependencies.merged;
-
-  const summary = summarizeChanges(
-    current,
-    next,
-    mergedScripts.addedScripts,
-    mergedScripts.updatedScripts,
-    mergedDependencies.added,
+  const lockstep = splitPostInstallLockstep(
+    mergedDevDependencies.merged,
     mergedDevDependencies.added,
-    mergedScripts.updatedPrepareScript,
+    current,
   );
+  next.devDependencies = lockstep.devDependencies;
+
+  const summary: PackageJsonChangeSummary = {
+    ...summarizeChanges(
+      current,
+      next,
+      mergedScripts.addedScripts,
+      mergedScripts.updatedScripts,
+      mergedDependencies.added,
+      mergedDevDependencies.added.filter(
+        (name) => !lockstep.postInstall.includes(name),
+      ),
+      mergedScripts.updatedPrepareScript,
+    ),
+    postInstallLockstep: lockstep.postInstall,
+  };
 
   return {
     path: packageJsonPath,
