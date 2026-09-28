@@ -2,12 +2,18 @@ import { describe, expect, it } from "vitest";
 import { scriptRunsVitest } from "./scripts.js";
 
 describe("scriptRunsVitest", (): void => {
-  it.each(["vitest run", "npx vitest run --coverage", "pnpm exec vitest"])(
-    "detects a test script that runs Vitest directly (%s)",
-    (test: string): void => {
-      expect(scriptRunsVitest({ test })).toBe(true);
-    },
-  );
+  it.each([
+    "vitest run",
+    "npx vitest run --coverage",
+    "pnpm exec vitest",
+    "yarn vitest",
+    "NODE_ENV=test vitest",
+    "cross-env CI=1 vitest run",
+    "./node_modules/.bin/vitest run",
+    "tsc --noEmit && vitest run",
+  ])("detects a test script that runs Vitest directly (%s)", (test: string): void => {
+    expect(scriptRunsVitest({ test })).toBe(true);
+  });
 
   it.each([
     "npm run test:unit",
@@ -49,6 +55,14 @@ describe("scriptRunsVitest", (): void => {
 
   it.each([
     ["another runner", { test: "jest" }],
+    [
+      "another runner whose options mention vitest",
+      { test: "jest --coverageDirectory=.vitest-coverage" },
+    ],
+    [
+      "another runner given a vitest path",
+      { test: "node --test tests/vitest/*.test.ts" },
+    ],
     ["a delegation to another runner", { test: "npm run unit", unit: "jest" }],
     ["a package manager command that is not a script", { test: "npm install" }],
     ["no test script", {}],
