@@ -112,12 +112,23 @@ describe("mergeManagedFileContent", (): void => {
 
     expect(result).toBe("node_modules/\ndist/\n.env\ncoverage/\n.DS_Store\n");
   });
+
+  it("merges .prettierignore entries without duplicates", (): void => {
+    const result = mergeManagedFileContent(
+      ".prettierignore",
+      "build/\npnpm-lock.yaml\n",
+      "pnpm-lock.yaml\npackage-lock.json\n",
+    );
+
+    expect(result).toBe("build/\npnpm-lock.yaml\npackage-lock.json\n");
+  });
 });
 
 describe("isMergeableManagedFile", (): void => {
   it("identifies the mergeable managed files", (): void => {
     expect(isMergeableManagedFile("tsconfig.json")).toBe(true);
     expect(isMergeableManagedFile(".gitignore")).toBe(true);
+    expect(isMergeableManagedFile(".prettierignore")).toBe(true);
     expect(isMergeableManagedFile("eslint.config.mjs")).toBe(false);
   });
 });

@@ -49,6 +49,10 @@ export const MANAGED_TEMPLATE_FILES: readonly ManagedTemplateFile[] = [
     targetRelativePath: ".gitignore",
   },
   {
+    sourceRelativePath: "prettierignore",
+    targetRelativePath: ".prettierignore",
+  },
+  {
     sourceRelativePath: "src/env.ts",
     targetRelativePath: "src/env.ts",
   },

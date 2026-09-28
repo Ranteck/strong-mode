@@ -174,6 +174,18 @@ describe("template ESLint config", (): void => {
     expect(included.filter((file) => file.includes("node_modules"))).toEqual([]);
   });
 
+  it("keeps lockfiles out of format:check with a managed .prettierignore", (): void => {
+    expect(MANAGED_TEMPLATE_FILES).toContainEqual({
+      sourceRelativePath: "prettierignore",
+      targetRelativePath: ".prettierignore",
+    });
+    const ignored = readTemplate("prettierignore").split(/\r?\n/u);
+
+    expect(ignored).toEqual(
+      expect.arrayContaining(["pnpm-lock.yaml", "package-lock.json", "yarn.lock"]),
+    );
+  });
+
   it("respects .gitignore, lints JS without type information and lints TS scripts", (): void => {
     const eslintConfig = readTemplate("eslint.config.mjs");
 

@@ -120,9 +120,11 @@ const mergeGitignore = (existingContent: string, incomingContent: string): strin
 };
 
 const TSCONFIG_FILES: readonly string[] = ["tsconfig.json", "tsconfig.eslint.json"];
+// Ignore files: one pattern per line, merged by keeping every distinct line.
+const LINE_LIST_FILES: readonly string[] = [".gitignore", ".prettierignore"];
 
 export const isMergeableManagedFile = (relativePath: string): boolean =>
-  TSCONFIG_FILES.includes(relativePath) || relativePath === ".gitignore";
+  TSCONFIG_FILES.includes(relativePath) || LINE_LIST_FILES.includes(relativePath);
 
 export const mergeManagedFileContent = (
   relativePath: string,
@@ -137,7 +139,7 @@ export const mergeManagedFileContent = (
     );
   }
 
-  if (relativePath === ".gitignore") {
+  if (LINE_LIST_FILES.includes(relativePath)) {
     return mergeGitignore(existingContent, incomingContent);
   }
 

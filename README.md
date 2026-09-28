@@ -53,7 +53,7 @@ npx strong-mode
 
 ## How it works
 
-`strong-mode` compares 13 managed files from its template against your project. New files are created automatically. Existing managed files can be merged, skipped, overwritten, or written with Git-style conflict markers depending on the file type and flags you use. `package.json` is handled structurally, so scripts and dependencies are added without flattening the rest of your project config.
+`strong-mode` compares 14 managed files from its template against your project. New files are created automatically. Existing managed files can be merged, skipped, overwritten, or written with Git-style conflict markers depending on the file type and flags you use. `package.json` is handled structurally, so scripts and dependencies are added without flattening the rest of your project config.
 
 - **Vitest coverage matches your Vitest.** `@vitest/coverage-v8` must be the exact same version as `vitest`. If the project already uses Vitest, the coverage package is added after install, pinned to the Vitest version your package manager actually installed. When dependencies are not installed (`--no-install`, or conflicts left to resolve), strong-mode prints the command to run instead.
 - **Replaced packages are cleaned up safely.** A package the template no longer ships (for example `eslint-plugin-eslint-comments`, replaced by `@eslint-community/eslint-plugin-eslint-comments`) is removed from `devDependencies` only when `eslint.config.mjs` ends up with the template content, so a config you kept still finds its plugin. It is kept when it is a runtime dependency, when the project is a workspace root, or when another ESLint config (`eslint.config.js`, `.eslintrc*`, or one a script selects with `eslint --config`) may still load it.
