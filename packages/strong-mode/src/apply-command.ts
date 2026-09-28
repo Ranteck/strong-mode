@@ -5,6 +5,8 @@ import process from "node:process";
 import { detectApplyInput } from "./apply/detect.js";
 import { LOCKSTEP_DEV_DEPENDENCIES } from "./apply/constants.js";
 import { executeApplyPlan } from "./apply/execute.js";
+import { assertEsmProject } from "./apply/module-system.js";
+import { assertCompatiblePeers } from "./apply/peer-compat.js";
 import { buildApplyPlan } from "./apply/plan.js";
 import { detectPackageManager, packageManagerLabel } from "./package-manager.js";
 import { resolveTemplateDir } from "./template.js";
@@ -86,6 +88,9 @@ const resolveCheckDecision = async (
   return exitOnCancel(selected);
 };
 
+const MODULE_TYPE_WARNING =
+  'package.json had no "type"; strong-mode sets "type": "module", so CommonJS .js files (require/module.exports) will stop working.';
+
 const summarizePlan = (plan: ReturnType<typeof buildApplyPlan>): readonly string[] => [
   formatSectionTitle("Plan Summary"),
   formatKeyValue("Project name", plan.projectName, "info"),
@@ -112,6 +117,9 @@ const summarizePlan = (plan: ReturnType<typeof buildApplyPlan>): readonly string
       ? "warning"
       : "neutral",
   ),
+  ...(plan.packageJsonPlan.summary.setModuleType
+    ? [formatKeyValue("Module type", MODULE_TYPE_WARNING, "warning")]
+    : []),
   ...(plan.packageJsonPlan.summary.postInstallLockstep.length > 0
     ? [
         formatKeyValue(
@@ -218,6 +226,15 @@ const summarizeResult = (
           ),
         ]
       : []),
+    ...(result.deferredFiles.length > 0
+      ? [
+          formatKeyValue(
+            "Deferred files",
+            `${result.deferredFiles.join(", ")} (resolve conflicts and re-run strong-mode)`,
+            "warning",
+          ),
+        ]
+      : []),
     formatKeyValue(
       "Package.json updated",
       result.packageJsonUpdated ? "yes" : "no",
@@ -248,13 +265,24 @@ export const runApplyCommand = async (
     throw new Error(`Target path is not a directory: ${targetDir}`);
   }
 
+  const detection = await detectApplyInput(targetDir, resolveTemplateDir());
+  assertEsmProject(detection.targetPackageJson);
+  await assertCompatiblePeers(
+    targetDir,
+    detection.targetPackageJson,
+    detection.templatePackageJson,
+  );
+
   const packageManager = await choosePackageManager(
     options.packageManager ?? detectPackageManager(targetDir),
     options.yes || options.packageManager !== undefined,
   );
 
-  const detection = await detectApplyInput(targetDir, resolveTemplateDir());
   const plan = buildApplyPlan(targetDir, detection);
+  // Warn before anything is written, so a later failure cannot hide it.
+  if (plan.packageJsonPlan.summary.setModuleType) {
+    log.warn(MODULE_TYPE_WARNING);
+  }
   // Warn before anything is written or installed: if install or the checks fail
   // later, only the error would be printed and this explanation would be lost.
 

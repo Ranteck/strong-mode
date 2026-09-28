@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildPackageJsonPlan } from "./patchers.js";
+import { buildPackageJsonPlan, dropReplacedDependencies } from "./patchers.js";
 import type { PackageJsonLike } from "./types.js";
 
 describe("buildPackageJsonPlan", (): void => {
@@ -41,6 +41,28 @@ describe("buildPackageJsonPlan", (): void => {
     expect(plan.summary.addedDevDependencies).toContain("eslint");
     expect(plan.next.scripts?.prepare).toBe("node ./scripts/prepare-hooks.mjs");
     expect(plan.summary.addedScripts).toContain("prepare");
+  });
+
+  it("replaces the npm init placeholder test script with the template's", (): void => {
+    const current: PackageJsonLike = {
+      scripts: { test: 'echo "Error: no test specified" && exit 1' },
+    };
+    const template: PackageJsonLike = { scripts: { test: "vitest run" } };
+
+    const plan = buildPackageJsonPlan("package.json", current, template, "demo");
+
+    expect(plan.next.scripts?.test).toBe("vitest run");
+    expect(plan.summary.updatedScripts).toContain("test");
+  });
+
+  it("keeps a real existing test script", (): void => {
+    const current: PackageJsonLike = { scripts: { test: "node --test" } };
+    const template: PackageJsonLike = { scripts: { test: "vitest run" } };
+
+    const plan = buildPackageJsonPlan("package.json", current, template, "demo");
+
+    expect(plan.next.scripts?.test).toBe("node --test");
+    expect(plan.summary.updatedScripts).not.toContain("test");
   });
 
   it("merges existing prepare script with the strong-mode hook installer", (): void => {
@@ -139,6 +161,21 @@ describe("buildPackageJsonPlan", (): void => {
     });
   });
 
+  it("flags an existing package.json without type that becomes ESM", (): void => {
+    const plan = buildPackageJsonPlan("package.json", { name: "legacy" }, {}, "legacy");
+
+    expect(plan.next.type).toBe("module");
+    expect(plan.summary.setModuleType).toBe(true);
+  });
+
+  it("does not flag a package.json that already declares its type or a new project", (): void => {
+    const esm = buildPackageJsonPlan("package.json", { type: "module" }, {}, "demo");
+    const fresh = buildPackageJsonPlan("package.json", undefined, {}, "demo");
+
+    expect(esm.summary.setModuleType).toBe(false);
+    expect(fresh.summary.setModuleType).toBe(false);
+  });
+
   it("returns fallback name and module defaults when current is undefined", (): void => {
     const plan = buildPackageJsonPlan("package.json", undefined, {}, "my-app");
 
@@ -146,5 +183,57 @@ describe("buildPackageJsonPlan", (): void => {
     expect(plan.next.version).toBe("0.1.0");
     expect(plan.next.type).toBe("module");
     expect(plan.next.private).toBe(true);
+  });
+});
+
+describe("dropReplacedDependencies", (): void => {
+  const next: PackageJsonLike = {
+    devDependencies: {
+      "@eslint-community/eslint-plugin-eslint-comments": "^4.8.1",
+      "eslint-plugin-eslint-comments": "^3.2.0",
+      vitest: "^4.1.8",
+    },
+  };
+
+  it("drops a replaced package when its config file ends up with the template", (): void => {
+    const result = dropReplacedDependencies(next, new Set(["eslint.config.mjs"]));
+
+    expect(result.dropped).toEqual(["eslint-plugin-eslint-comments"]);
+    expect(result.next.devDependencies).toEqual({
+      "@eslint-community/eslint-plugin-eslint-comments": "^4.8.1",
+      vitest: "^4.1.8",
+    });
+  });
+
+  it("keeps it while the project's own config may still import it", (): void => {
+    const result = dropReplacedDependencies(next, new Set<string>());
+
+    expect(result.dropped).toEqual([]);
+    expect(result.next).toBe(next);
+  });
+
+  it("keeps it when it is a runtime dependency, which exported code may import", (): void => {
+    const runtime: PackageJsonLike = {
+      dependencies: { "eslint-plugin-eslint-comments": "^3.2.0" },
+      devDependencies: { "@eslint-community/eslint-plugin-eslint-comments": "^4.8.1" },
+    };
+
+    const result = dropReplacedDependencies(runtime, new Set(["eslint.config.mjs"]));
+
+    expect(result.dropped).toEqual([]);
+    expect(result.next).toBe(runtime);
+  });
+
+  it("keeps it when the replacement is not declared", (): void => {
+    const withoutReplacement: PackageJsonLike = {
+      devDependencies: { "eslint-plugin-eslint-comments": "^3.2.0" },
+    };
+
+    const result = dropReplacedDependencies(
+      withoutReplacement,
+      new Set(["eslint.config.mjs"]),
+    );
+
+    expect(result.dropped).toEqual([]);
   });
 });

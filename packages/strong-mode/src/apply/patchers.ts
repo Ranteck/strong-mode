@@ -1,4 +1,4 @@
-import { LOCKSTEP_DEV_DEPENDENCIES } from "./constants.js";
+import { LOCKSTEP_DEV_DEPENDENCIES, REPLACED_DEV_DEPENDENCIES } from "./constants.js";
 import type {
   PackageJsonChangeSummary,
   PackageJsonLike,
@@ -23,6 +23,12 @@ const KNOWN_SCRIPT_KEYS: readonly string[] = [
   "quality",
   "prepare",
 ];
+
+// Scripts that `npm init` / `pnpm init` generate as placeholders. They carry no
+// user intent, so the template script replaces them instead of being skipped.
+const PLACEHOLDER_SCRIPTS: Readonly<Record<string, string>> = {
+  test: 'echo "Error: no test specified" && exit 1',
+};
 
 const clonePackageJson = (value: PackageJsonLike | undefined): PackageJsonLike =>
   value === undefined ? {} : (JSON.parse(JSON.stringify(value)) as PackageJsonLike);
@@ -85,6 +91,9 @@ const mergeScripts = (
     if (previous === undefined) {
       baseScripts[key] = templateValue;
       addedScripts.push(key);
+    } else if (PLACEHOLDER_SCRIPTS[key] === previous) {
+      baseScripts[key] = templateValue;
+      updatedScripts.push(key);
     }
   }
 
@@ -165,8 +174,45 @@ const summarizeChanges = (
   addedDevDependencies,
   updatedPrepareScript,
   postInstallLockstep: [],
+  setModuleType: false,
   changed: JSON.stringify(before ?? {}) !== JSON.stringify(after),
 });
+
+const isDeclared = (packageJson: PackageJsonLike, name: string): boolean =>
+  packageJson.devDependencies?.[name] !== undefined ||
+  packageJson.dependencies?.[name] !== undefined;
+
+const withoutPackages = (
+  deps: Record<string, string>,
+  names: readonly string[],
+): Record<string, string> =>
+  Object.fromEntries(Object.entries(deps).filter(([name]) => !names.includes(name)));
+
+export const dropReplacedDependencies = (
+  next: PackageJsonLike,
+  templateFiles: ReadonlySet<string>,
+): { readonly next: PackageJsonLike; readonly dropped: readonly string[] } => {
+  // A runtime dependency may be imported by exported code (a shared config), so
+  // only a dev-only declaration is cleaned up.
+  const dropped = Object.entries(REPLACED_DEV_DEPENDENCIES)
+    .filter(
+      ([name, { replacement, configFile }]) =>
+        next.devDependencies?.[name] !== undefined &&
+        next.dependencies?.[name] === undefined &&
+        isDeclared(next, replacement) &&
+        templateFiles.has(configFile),
+    )
+    .map(([name]) => name);
+
+  if (dropped.length === 0 || next.devDependencies === undefined) {
+    return { next, dropped: [] };
+  }
+
+  return {
+    next: { ...next, devDependencies: withoutPackages(next.devDependencies, dropped) },
+    dropped,
+  };
+};
 
 export const buildPackageJsonPlan = (
   packageJsonPath: string,
@@ -220,6 +266,7 @@ export const buildPackageJsonPlan = (
       mergedScripts.updatedPrepareScript,
     ),
     postInstallLockstep: lockstep.postInstall,
+    setModuleType: current !== undefined && typeof current.type !== "string",
   };
 
   return {

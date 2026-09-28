@@ -1,5 +1,4 @@
 import { z } from "zod";
-import { env } from "./env.js";
 
 const IncomingPayloadSchema = z
   .object({
@@ -13,4 +12,4 @@ export type IncomingPayload = z.infer<typeof IncomingPayloadSchema>;
 export const parseIncomingPayload = (externalInput: unknown): IncomingPayload =>
   IncomingPayloadSchema.parse(externalInput);
 
-export { env };
+export { env } from "./env.js";

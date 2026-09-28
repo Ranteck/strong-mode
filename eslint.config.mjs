@@ -1,3 +1,5 @@
+import { fileURLToPath } from "node:url";
+import { includeIgnoreFile } from "@eslint/compat";
 import eslint from "@eslint/js";
 import tseslint from "typescript-eslint";
 import unicorn from "eslint-plugin-unicorn";
@@ -8,6 +10,9 @@ import unusedImports from "eslint-plugin-unused-imports";
 import eslintComments from "@eslint-community/eslint-plugin-eslint-comments";
 
 export default tseslint.config(
+  // Whatever the project keeps out of git (build output such as .next/, .nuxt/ or
+  // .astro/) is not linted either.
+  includeIgnoreFile(fileURLToPath(new URL(".gitignore", import.meta.url))),
   eslint.configs.recommended,
   ...tseslint.configs.strictTypeChecked,
   ...tseslint.configs.stylisticTypeChecked,
@@ -17,7 +22,7 @@ export default tseslint.config(
   {
     languageOptions: {
       parserOptions: {
-        projectService: true,
+        project: "./tsconfig.eslint.json",
         tsconfigRootDir: import.meta.dirname,
       },
     },
@@ -171,12 +176,24 @@ export default tseslint.config(
     },
   },
   {
+    // Plain JavaScript files are outside the TypeScript program: lint them without
+    // type information instead of failing to parse them.
+    files: ["**/*.{js,mjs,cjs}"],
+    extends: [tseslint.configs.disableTypeChecked],
+    rules: {
+      "@typescript-eslint/explicit-function-return-type": "off",
+      "@typescript-eslint/explicit-module-boundary-types": "off",
+    },
+  },
+  {
     ignores: [
       "dist/**",
       "coverage/**",
       "node_modules/**",
       "*.config.js",
       "*.config.mjs",
+      "*.config.cjs",
+      "scripts/**/*.{js,mjs,cjs}",
     ],
   },
 );

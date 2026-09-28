@@ -2,6 +2,32 @@ import { describe, expect, it } from "vitest";
 import { isMergeableManagedFile, mergeManagedFileContent } from "./merge.js";
 
 describe("mergeManagedFileContent", (): void => {
+  it("merges tsconfig.eslint.json like tsconfig.json", (): void => {
+    expect(isMergeableManagedFile("tsconfig.eslint.json")).toBe(true);
+
+    const result = mergeManagedFileContent(
+      "tsconfig.eslint.json",
+      JSON.stringify({
+        extends: "./tsconfig.base.json",
+        include: ["src", "test"],
+      }),
+      JSON.stringify({
+        extends: "./tsconfig.json",
+        compilerOptions: { noEmit: true },
+        include: ["src/**/*", "tests/**/*"],
+      }),
+    );
+    const merged = JSON.parse(result ?? "{}") as {
+      extends?: string;
+      include?: string[];
+      compilerOptions?: Record<string, unknown>;
+    };
+
+    expect(merged.extends).toBe("./tsconfig.base.json");
+    expect(merged.compilerOptions?.noEmit).toBe(true);
+    expect(merged.include).toEqual(["src", "test", "src/**/*", "tests/**/*"]);
+  });
+
   it("merges tsconfig.json additively while preserving existing values", (): void => {
     const result = mergeManagedFileContent(
       "tsconfig.json",

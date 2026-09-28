@@ -50,6 +50,7 @@ jobs:
           mkdir -p /tmp/strong-mode-smoke
           cd /tmp/strong-mode-smoke
           npm init -y >/dev/null 2>&1
+          npm pkg set type=module
           npm exec --yes --package="$tarball" strong-mode -- --dry-run --yes
 
       - name: Publish package
