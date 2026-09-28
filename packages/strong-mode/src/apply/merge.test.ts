@@ -28,6 +28,31 @@ describe("mergeManagedFileContent", (): void => {
     expect(merged.include).toEqual(["src", "test", "src/**/*", "tests/**/*"]);
   });
 
+  it("keeps every linted file in the tsconfig.eslint.json program by taking the template's exclude", (): void => {
+    const result = mergeManagedFileContent(
+      "tsconfig.eslint.json",
+      JSON.stringify({ include: ["src"], exclude: ["tests", "node_modules"] }),
+      JSON.stringify({
+        include: ["**/*.ts"],
+        exclude: ["node_modules", "dist", "coverage"],
+      }),
+    );
+    const merged = JSON.parse(result ?? "{}") as { exclude?: string[] };
+
+    expect(merged.exclude).toEqual(["node_modules", "dist", "coverage"]);
+  });
+
+  it("still merges exclude additively in tsconfig.json", (): void => {
+    const result = mergeManagedFileContent(
+      "tsconfig.json",
+      JSON.stringify({ exclude: ["tests"] }),
+      JSON.stringify({ exclude: ["node_modules"] }),
+    );
+    const merged = JSON.parse(result ?? "{}") as { exclude?: string[] };
+
+    expect(merged.exclude).toEqual(["tests", "node_modules"]);
+  });
+
   it("merges tsconfig.json additively while preserving existing values", (): void => {
     const result = mergeManagedFileContent(
       "tsconfig.json",

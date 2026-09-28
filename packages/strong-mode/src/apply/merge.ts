@@ -66,6 +66,7 @@ const parseJsonObject = (source: string): Record<string, unknown> | undefined =>
 const mergeTsconfig = (
   existingContent: string,
   incomingContent: string,
+  templateOwnedKeys: readonly string[] = [],
 ): string | undefined => {
   const current = parseJsonObject(existingContent);
   const incoming = parseJsonObject(incomingContent);
@@ -79,7 +80,22 @@ const mergeTsconfig = (
     return undefined;
   }
 
+  for (const key of templateOwnedKeys) {
+    if (key in incoming) {
+      merged[key] = cloneJsonValue(incoming[key]);
+    }
+  }
+
   return `${JSON.stringify(merged, null, 2)}\n`;
+};
+
+// tsconfig.eslint.json is the program for every file ESLint lints, and `exclude`
+// wins over `include`, so an exclusion kept from the project (for example
+// "tests") would bring back the "file was not found in any project" parsing errors.
+// Files that should not be linted are ignored through .gitignore or the ESLint
+// config instead; `exclude` is the template's.
+const TEMPLATE_OWNED_KEYS: Readonly<Record<string, readonly string[]>> = {
+  "tsconfig.eslint.json": ["exclude"],
 };
 
 const mergeGitignore = (existingContent: string, incomingContent: string): string => {
@@ -114,7 +130,11 @@ export const mergeManagedFileContent = (
   incomingContent: string,
 ): string | undefined => {
   if (TSCONFIG_FILES.includes(relativePath)) {
-    return mergeTsconfig(existingContent, incomingContent);
+    return mergeTsconfig(
+      existingContent,
+      incomingContent,
+      TEMPLATE_OWNED_KEYS[relativePath],
+    );
   }
 
   if (relativePath === ".gitignore") {
