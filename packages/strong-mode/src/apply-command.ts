@@ -6,6 +6,7 @@ import { detectApplyInput } from "./apply/detect.js";
 import { LOCKSTEP_DEV_DEPENDENCIES } from "./apply/constants.js";
 import { executeApplyPlan } from "./apply/execute.js";
 import { assertEsmProject } from "./apply/module-system.js";
+import { assertCompatiblePeers } from "./apply/peer-compat.js";
 import { buildApplyPlan } from "./apply/plan.js";
 import { detectPackageManager, packageManagerLabel } from "./package-manager.js";
 import { resolveTemplateDir } from "./template.js";
@@ -266,6 +267,7 @@ export const runApplyCommand = async (
 
   const detection = await detectApplyInput(targetDir, resolveTemplateDir());
   assertEsmProject(detection.targetPackageJson);
+  assertCompatiblePeers(detection.targetPackageJson, detection.templatePackageJson);
 
   const packageManager = await choosePackageManager(
     options.packageManager ?? detectPackageManager(targetDir),

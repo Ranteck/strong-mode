@@ -76,6 +76,15 @@ export const MANAGED_FILE_DEPENDENCIES: Readonly<Record<string, string>> = {
 // script runs Vitest; another runner (Jest, node --test) would pick them up and fail.
 export const VITEST_TEST_FILES: ReadonlySet<string> = new Set(["tests/env.test.ts"]);
 
+// Peers that packages added by the template require from packages the project may
+// already declare. Only checked when the template adds the package itself; keep the
+// range in sync with that package's own peerDependencies when bumping the template.
+export const TEMPLATE_PEER_REQUIREMENTS: Readonly<
+  Record<string, { readonly peer: string; readonly range: string }>
+> = {
+  vitest: { peer: "vite", range: "^6.4.0 || ^7.0.0 || ^8.0.0" },
+};
+
 // Packages the template stopped shipping, with their replacement and the managed
 // config file that loads them. The old package is removed only when that config
 // file ends up with the template content; otherwise the project's own config may

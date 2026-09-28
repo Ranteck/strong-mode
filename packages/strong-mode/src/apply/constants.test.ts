@@ -2,6 +2,7 @@ import { readFileSync } from "node:fs";
 import { mkdir, mkdtemp, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
+import semver from "semver";
 import ts from "typescript";
 import { describe, expect, it } from "vitest";
 import { resolveTemplateDir } from "../template.js";
@@ -10,9 +11,23 @@ import {
   MANAGED_FILE_DEPENDENCIES,
   MANAGED_TEMPLATE_FILES,
   REPLACED_DEV_DEPENDENCIES,
+  TEMPLATE_PEER_REQUIREMENTS,
 } from "./constants.js";
 
 describe("LOCKSTEP_DEV_DEPENDENCIES", (): void => {
+  it("satisfies its own peer requirements (TEMPLATE_PEER_REQUIREMENTS)", (): void => {
+    const templatePackageJson = JSON.parse(
+      readFileSync(path.join(resolveTemplateDir(), "package.json"), "utf8"),
+    ) as { devDependencies: Record<string, string> };
+
+    for (const [name, { peer, range }] of Object.entries(TEMPLATE_PEER_REQUIREMENTS)) {
+      expect(templatePackageJson.devDependencies[name]).toBeDefined();
+      expect(
+        semver.subset(templatePackageJson.devDependencies[peer] ?? "", range),
+      ).toBe(true);
+    }
+  });
+
   it("declares vite, which Vitest 5 needs as a non-optional peer that Yarn does not install", (): void => {
     const templatePackageJson = JSON.parse(
       readFileSync(path.join(resolveTemplateDir(), "package.json"), "utf8"),

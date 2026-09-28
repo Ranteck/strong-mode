@@ -58,6 +58,7 @@ npx strong-mode
 - **Vitest coverage matches your Vitest.** `@vitest/coverage-v8` must be the exact same version as `vitest`. If the project already uses Vitest, the coverage package is added after install, pinned to the Vitest version your package manager actually installed. When dependencies are not installed (`--no-install`, or conflicts left to resolve), strong-mode prints the command to run instead.
 - **Replaced packages are cleaned up safely.** A package the template no longer ships (for example `eslint-plugin-eslint-comments`, replaced by `@eslint-community/eslint-plugin-eslint-comments`) is removed from `devDependencies` only when `eslint.config.mjs` ends up with the template content, so a config you kept still finds its plugin. It is kept when it is a runtime dependency, when the project is a workspace root, or when another ESLint config (`eslint.config.js`, `.eslintrc*`, or one a script selects with `eslint --config`) may still load it.
 - **ES modules.** A `package.json` without `"type"` is switched to `"type": "module"`, and strong-mode warns first, because CommonJS `.js` files (`require`/`module.exports`) stop working.
+- **Compatible peers.** The template adds Vitest 5, which needs Vite 6.4 or later. A project that pins an older Vite (for example `~6.3.0`) and has no Vitest of its own is rejected before anything is written, with the upgrade to run.
 
 ## Contributing
 

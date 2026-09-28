@@ -188,6 +188,43 @@ describe("runApplyCommand", (): void => {
     expect(await readFile(packageJsonPath, "utf8")).toBe(beforePackageJson);
   });
 
+  it("rejects a Vite the template's Vitest cannot use before writing any file", async (): Promise<void> => {
+    const tempDir = await createExistingProject();
+    const packageJsonPath = path.join(tempDir, "package.json");
+    const packageJson = JSON.parse(await readFile(packageJsonPath, "utf8")) as {
+      devDependencies?: Record<string, string>;
+    };
+    await writeFile(
+      packageJsonPath,
+      `${JSON.stringify(
+        {
+          ...packageJson,
+          devDependencies: { ...packageJson.devDependencies, vite: "~6.3.0" },
+        },
+        null,
+        2,
+      )}\n`,
+    );
+    const beforeFiles = await readdir(tempDir);
+    const beforePackageJson = await readFile(packageJsonPath, "utf8");
+
+    await expect(
+      runApplyCommand({
+        command: "apply",
+        cwd: tempDir,
+        packageManager: "npm",
+        install: false,
+        runChecks: false,
+        yes: true,
+        dryRun: false,
+        backup: false,
+        force: false,
+      }),
+    ).rejects.toThrow('declares vite "~6.3.0"');
+    expect(await readdir(tempDir)).toEqual(beforeFiles);
+    expect(await readFile(packageJsonPath, "utf8")).toBe(beforePackageJson);
+  });
+
   it("merges package.json and tsconfig.json for an existing project", async (): Promise<void> => {
     const tempDir = await createExistingProject();
 
