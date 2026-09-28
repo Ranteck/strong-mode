@@ -52,6 +52,28 @@ describe("buildApplyPlan", (): void => {
     expect(plan.requiresInstall).toBe(true);
   });
 
+  it("sets requiresInstall true when a replaced dependency may be removed, even with nothing to add", (): void => {
+    const devDependencies = {
+      "@eslint-community/eslint-plugin-eslint-comments": "^4.8.1",
+      "eslint-plugin-eslint-comments": "^3.2.0",
+    };
+    const detection: ApplyDetection = {
+      projectName: "demo",
+      targetPackageJson: { name: "demo", devDependencies },
+      templatePackageJson: {
+        devDependencies: {
+          "@eslint-community/eslint-plugin-eslint-comments": "^4.8.1",
+        },
+      },
+      managedFiles: [],
+    };
+
+    const plan = buildApplyPlan("/tmp/demo", detection);
+
+    expect(plan.packageJsonPlan.summary.addedDevDependencies).toEqual([]);
+    expect(plan.requiresInstall).toBe(true);
+  });
+
   it("sets requiresInstall false when target already has all template dependencies", (): void => {
     const detection: ApplyDetection = {
       projectName: "demo",
