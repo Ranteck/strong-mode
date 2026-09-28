@@ -267,7 +267,11 @@ export const runApplyCommand = async (
 
   const detection = await detectApplyInput(targetDir, resolveTemplateDir());
   assertEsmProject(detection.targetPackageJson);
-  assertCompatiblePeers(detection.targetPackageJson, detection.templatePackageJson);
+  await assertCompatiblePeers(
+    targetDir,
+    detection.targetPackageJson,
+    detection.templatePackageJson,
+  );
 
   const packageManager = await choosePackageManager(
     options.packageManager ?? detectPackageManager(targetDir),
