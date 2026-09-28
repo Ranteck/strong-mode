@@ -562,17 +562,6 @@ export const executeApplyPlan = async (
     await applyConflictingFile(managedFile, options, results);
   }
 
-  // Dependent files go last so the files they depend on are already resolved.
-  await applyDependentFiles(
-    [...plan.filesToCreate, ...plan.conflictingFiles].filter(isDependentFile),
-    plan.packageJsonPlan.next.scripts,
-    options,
-    results,
-  );
-
-  const { createdFiles, conflictedFiles, mergedFiles, overwrittenFiles, skippedFiles } =
-    results;
-
   const nextPackageJson = await withoutReplacedDependencies(
     plan.packageJsonPlan.next,
     results,
@@ -580,6 +569,20 @@ export const executeApplyPlan = async (
   );
   const packageJsonOutcome = await applyPackageJson(plan, nextPackageJson, options);
   let packageJsonUpdated = packageJsonOutcome === "updated";
+
+  // Dependent files go last so the files they depend on are already resolved, and
+  // follow the package.json that is kept: the current one when its update was skipped.
+  await applyDependentFiles(
+    [...plan.filesToCreate, ...plan.conflictingFiles].filter(isDependentFile),
+    packageJsonOutcome === "skipped"
+      ? plan.packageJsonPlan.current?.scripts
+      : nextPackageJson.scripts,
+    options,
+    results,
+  );
+
+  const { createdFiles, conflictedFiles, mergedFiles, overwrittenFiles, skippedFiles } =
+    results;
 
   let installRan = false;
   if (options.shouldInstall && conflictedFiles.length === 0 && !options.dryRun) {
