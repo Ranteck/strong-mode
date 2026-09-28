@@ -50,7 +50,7 @@ Scripts added to target projects by `strong-mode`:
 - `quality`: Full gate (check + test:coverage + deps:graph + deps:cycles + audit)
 - `test`: Run tests with vitest
 - `build`: Compile TypeScript
-- `dead-code`: Find unused exports with knip
+- `dead-code`: Find unused files, exports and dependencies with knip (no pinned `entry`/`project`: knip's defaults + framework plugins)
 - `deps:graph`: Validate dependencies with dependency-cruiser
 - `deps:cycles`: Detect circular dependencies with madge
 

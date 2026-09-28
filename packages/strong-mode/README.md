@@ -36,7 +36,7 @@ npx strong-mode
 - `quality`: check + tests + coverage + dep graph + dep cycles + audit (full)
 - `test`: runs Vitest with coverage thresholds (90% lines/functions/statements, 85% branches) on every run
 
-**Tooling configs**: Prettier, Vitest, Knip (dead code), dependency-cruiser, lefthook (git hooks)
+**Tooling configs**: Prettier, Vitest, Knip (dead code — framework-aware: it relies on knip's defaults and plugins, so Next.js, Vite, Astro and other layouts are analysed by their real entry points), dependency-cruiser, lefthook (git hooks)
 
 ## Options
 
@@ -85,7 +85,7 @@ node packages/strong-mode/dist/cli.js --dry-run --yes
 ## Roadmap / Known limitations
 
 - **CommonJS projects are not supported yet.** The template is ESM-only (`module: NodeNext` + `verbatimModuleSyntax`), so `strong-mode` stops before writing anything when `package.json` has `"type": "commonjs"`. Planned: a CommonJS-aware `tsconfig.json` (`verbatimModuleSyntax: false`, with `consistent-type-imports` keeping type-only imports explicit), and no longer switching a `package.json` without `"type"` to `"module"`.
-- **Dead-code detection assumes a `src/index.ts` entry.** `knip.config.ts` pins `entry` and `project`, so frameworks with other entry points (Next.js, Vite, Astro, …) get false "unused file" reports. Planned: drop the pinned entries and let knip's framework plugins detect them.
+- **Other gates still assume a `src/` layout.** The template's `rootDir: ./src` makes `typecheck` fail (TS6059) for any file outside `src/` that the project's tsconfig includes (for example Next.js `app/` or a root `*.config.ts`); `deps:graph` and `deps:cycles` only scan `src` (madge only `.ts`); coverage only measures `src/**/*.ts`. Planned: derive these from the project layout.
 - **Upgrading from an older strong-mode.** Re-running `strong-mode` on a project that already has an older version of the managed files treats every file that differs from the current template as a conflict (with `--yes`, `tsconfig.json`, `tsconfig.eslint.json` and `.gitignore` are merged structurally and the rest get Git-style markers), and replaced packages stay until `eslint.config.mjs` matches the template. Planned: recognize previously shipped template versions and update them in place.
 - **Monorepos lint with one root program.** Type-aware lint uses the root `tsconfig.eslint.json` for every file, so a workspace package's own `compilerOptions` (for example `paths` aliases) do not apply and can produce false `no-unsafe-*` errors. Planned: one lint program per workspace package.
 - **Vitest is the only supported test runner.** When the project keeps another `test` script (Jest, `node --test`, …), strong-mode does not add `tests/env.test.ts`, but `test:coverage` and `quality` still run Vitest over the project's tests. Planned: detect the test runner and adapt the gates to it.

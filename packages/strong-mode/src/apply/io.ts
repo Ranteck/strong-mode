@@ -17,7 +17,7 @@ const exists = async (filePath: string): Promise<boolean> => {
 
 export const fileExists = exists;
 
-export const ensureParentDirectory = async (filePath: string): Promise<void> => {
+const ensureParentDirectory = async (filePath: string): Promise<void> => {
   try {
     await mkdir(path.dirname(filePath), { recursive: true });
   } catch (error: unknown) {
