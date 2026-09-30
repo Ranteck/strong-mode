@@ -14,6 +14,16 @@ describe("scriptRunsVitest", (): void => {
     "pnpm --filter app exec vitest",
     "npx vitest@3 run",
     "./node_modules/.bin/vitest run",
+    "NODE_ENV=test node_modules/.bin/vitest",
+    "cross-env CI=1 vitest",
+    "npm exec -- vitest",
+    "bunx vitest run",
+    "pnpx vitest run",
+    "dotenv vitest run",
+    "pnpm dlx vitest run",
+    "bun x vitest run",
+    "env TZ=UTC npx vitest run",
+    '"C:\\tools\\vitest@3" run',
     "tsc --noEmit && vitest run",
   ])("detects a test script that runs Vitest directly (%s)", (test: string): void => {
     expect(scriptRunsVitest({ test })).toBe(true);
@@ -36,6 +46,12 @@ describe("scriptRunsVitest", (): void => {
     expect(scriptRunsVitest({ test, "test:unit": "vitest run" })).toBe(true);
   });
 
+  it("follows delegation after a separate package manager option value", (): void => {
+    expect(scriptRunsVitest({ test: "npm --prefix . run x", x: "vitest run" })).toBe(
+      true,
+    );
+  });
+
   it("follows delegation across several scripts", (): void => {
     expect(
       scriptRunsVitest({
@@ -54,6 +70,9 @@ describe("scriptRunsVitest", (): void => {
   it.each([
     "npm run vitest",
     "npm --silent run --silent vitest --silent",
+    "npm --prefix . run vitest",
+    "/usr/bin/npm run vitest",
+    "yarn workspace app run vitest",
     "pnpm run-script vitest",
     "yarn vitest",
     "bun vitest",
@@ -74,6 +93,15 @@ describe("scriptRunsVitest", (): void => {
 
   it.each([
     ["another runner", { test: "jest" }],
+    ["another runner with a vitest argument", { test: "jest vitest" }],
+    ["another runner with a vitest option value", { test: "jest --config vitest" }],
+    ["a compiler with a vitest project argument", { test: "tsc -p vitest" }],
+    ["an echoed vitest argument", { test: "echo vitest" }],
+    ["a node script named vitest", { test: "node scripts/vitest" }],
+    [
+      "a package manager argument",
+      { test: "echo npm run vitest", vitest: "vitest run" },
+    ],
     [
       "another runner whose options mention vitest",
       { test: "jest --coverageDirectory=.vitest-coverage" },

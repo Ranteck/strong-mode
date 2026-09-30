@@ -43,15 +43,21 @@ Scope: fix how strong-mode decides whether a project's test script runs Vitest, 
 
 **A. `packages/strong-mode/src/apply/scripts.ts`** (the exported `scriptRunsVitest(scripts, name = "test")` keeps its signature and its callers stay unchanged)
 
-1. A command (the existing split on `&&`, `||`, `;` and `|`, with quotes stripped from words) runs Vitest when any of its words that is not a flag (does not start with `-`) and not an environment assignment (`VAR=value`), after removing any path prefix and any `@version` suffix, is exactly `vitest`. This replaces the current "first program after launchers" heuristic (`executableOf` and `wrapperLength`), which misses flag values and unknown launchers.
-2. Exception: a word that names a script in a package-manager delegation is not treated as a program. That covers `npm|pnpm|yarn|bun run <name>` and `... run-script <name>` (flags may appear anywhere), and a bare `pnpm|yarn|bun <name>` when `<name>` is an existing key in `scripts`. Those names are followed only through the existing delegation search, so the script they point to decides.
-3. Keep: `jest --coverageDirectory=.vitest-coverage` is not Vitest; delegation cycles stop the search; `npm test` and `npm --silent run x` keep delegating as today.
-4. Known limitation, do not address: quoting is not shell-accurate (a separator inside quotes still splits the command).
+Design rule: decide which program each command actually runs. When a case is ambiguous, prefer not detecting Vitest, because a false positive adds a Vitest-only test to a project that uses another runner.
+
+1. Per command (the existing split on `&&`, `||`, `;` and `|`, with quotes stripped from words), skip leading environment assignments (`VAR=value`). The program is the first remaining word, compared by its base name (no path prefix, split on `/` and `\`) with any `@version` suffix removed. Arguments and file paths after the program never count.
+2. When the program is a launcher, continue with what it launches:
+   - `npx`, `bunx`, `pnpx`, `cross-env`, `env`: the next word that is neither a flag (starts with `-`) nor an assignment.
+   - `dotenv`: the words after `--` when present; otherwise the next word that is not a flag.
+   - `npm`, `pnpm`, `yarn`, `bun`, also when path-qualified (`/usr/bin/npm`): find the first subcommand word among `exec`, `dlx`, `x`, `run`, `run-script`. After `exec`, `dlx` or `x`, the program is the next word that is not a flag. After `run` or `run-script`, the next word that is not a flag names a delegated script, not a program. With no such subcommand, the first word after the package manager that is not a flag is a delegated script name when the package manager is `npm` or when that name is an existing key in `scripts`; otherwise it is the program.
+3. A command runs Vitest when its final program is `vitest`. The delegation search uses the same package-manager analysis, so `npm --prefix . run x` delegates to `x` and `yarn workspace app run vitest` delegates to the `vitest` script.
+4. Keep: `jest --coverageDirectory=.vitest-coverage` is not Vitest; delegation cycles stop the search; `npm test` and `npm --silent run x` keep delegating as today. Respect the CLI's ESLint limits (explicit return types, complexity) by splitting helpers as needed.
+5. Known limitation, do not address: quoting is not shell-accurate (a separator inside quotes still splits the command).
 
 **B. `packages/strong-mode/src/apply/scripts.test.ts`** — add cases, keeping every existing case passing:
 
-1. True: `{ test: "dotenv -e .env.test -- vitest run" }`, `{ test: "env TZ=UTC vitest run" }`, `{ test: "pnpm --filter app exec vitest" }`, `{ test: "npx vitest@3 run" }`, `{ test: "yarn vitest" }` (no `vitest` script), `{ test: "npm run vitest", vitest: "vitest run" }`.
-2. False: `{ test: "npm run vitest", vitest: "jest" }`, `{ test: "yarn vitest", vitest: "jest" }`.
+1. True: `{ test: "dotenv -e .env.test -- vitest run" }`, `{ test: "env TZ=UTC vitest run" }`, `{ test: "pnpm --filter app exec vitest" }`, `{ test: "npx vitest@3 run" }`, `{ test: "yarn vitest" }` (no `vitest` script), `{ test: "npm run vitest", vitest: "vitest run" }`, `{ test: "npm --prefix . run x", x: "vitest run" }`, `{ test: "NODE_ENV=test node_modules/.bin/vitest" }`, `{ test: "cross-env CI=1 vitest" }`, `{ test: "npm exec -- vitest" }`.
+2. False: `{ test: "npm run vitest", vitest: "jest" }`, `{ test: "yarn vitest", vitest: "jest" }`, `{ test: "jest vitest" }`, `{ test: "jest --config vitest" }`, `{ test: "echo vitest" }`, `{ test: "node scripts/vitest" }`, `{ test: "npm --prefix . run vitest", vitest: "jest" }`, `{ test: "/usr/bin/npm run vitest", vitest: "jest" }`, `{ test: "yarn workspace app run vitest", vitest: "jest" }`.
 
 **C. Docs** — in `README.md`, `packages/strong-mode/README.md` and `CLAUDE.md`, wherever the text lists the files that `--yes` merges structurally (`tsconfig.json`, `tsconfig.eslint.json`, `.gitignore`), add `.prettierignore` (merged by lines like `.gitignore`). Change nothing else in those files.
 
@@ -60,7 +66,7 @@ Scope: fix how strong-mode decides whether a project's test script runs Vitest, 
 **Acceptance criteria** (checked by Claude in VERIFY):
 
 1. `npm run test -w strong-mode` passes, including the new cases.
-2. The new cases in B fail against `scripts.ts` from commit e759db1 (checked in a temporary copy).
+2. In a temporary copy: the `dotenv`, `env`, `pnpm --filter` and `@version` true cases fail against `scripts.ts` from e759db1, and the `jest vitest`, `node scripts/vitest`, `--prefix` and `/usr/bin/npm` false cases fail against `scripts.ts` from 37e8e6f.
 3. `npm run build -w strong-mode && node packages/strong-mode/dist/cli.js --dry-run --yes` succeeds and the template copy stays in sync.
 4. `/e2e-pm-matrix`: npm and pnpm pass; Yarn Classic and bun fail only with the documented sonarjs limitation.
 
@@ -74,3 +80,12 @@ Scope: fix how strong-mode decides whether a project's test script runs Vitest, 
 - **Resulting writer work**: scripts.ts: Vitest detected among non-flag words (path and @version normalized), delegated script names excluded; scripts.test.ts: the eight contract cases; README.md, packages/strong-mode/README.md, CLAUDE.md: `.prettierignore` listed among the files `--yes` merges
 - **Checkpoint**: locate-by-feature-and-round
 - **Decision notes**: contract derived from the 2026-09-30 review-only pass on the 7 unpushed PR #9 commits (Codex plus the apply-invariants reviewer); quoted-separator splitting and ignore-file negation ruled false positives; the pre-existing `engines` override is deferred to a separate PR
+
+##### REFACTOR-r01
+
+- **Actors/backend**: reviewer Codex (fresh read-only CRITIQUE); writer Codex (fresh write session after the resumed write was rejected); orchestrator Claude; backend codex
+- **CRITIQUE outcome**: 3 P2 findings on scripts.ts; docs judged correct
+- **DEBATE classifications**: valid: the "any non-flag word" rule turns arguments into false positives (`jest vitest`, `tsc -p vitest`, `node scripts/vitest`); valid: separate option values break delegation (`npm --prefix . run x`, `yarn workspace app run vitest`); valid (P3): path-qualified package managers not recognized
+- **Resulting writer work**: scripts.ts reworked to resolve the program each command runs (launchers, package-manager subcommands found anywhere, base-name and @version normalization, shared delegation analysis); scripts.test.ts: the r01 contract cases; contract A and B rewritten, user re-approved the revised plan
+- **Checkpoint**: locate-by-feature-and-round
+- **Decision notes**: false positives are worse than false negatives here (a Vitest-only test in another runner's suite breaks it, and the README promises it is not added), so ambiguous forms now resolve to "not Vitest"; the resumed `--resume-last --write` attempt was rejected by the read-only sandbox, snapshots proved no partial write, and a fresh write session with an inline continuity summary applied the fix
