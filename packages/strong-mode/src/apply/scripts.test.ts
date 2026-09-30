@@ -9,6 +9,10 @@ describe("scriptRunsVitest", (): void => {
     "yarn vitest",
     "NODE_ENV=test vitest",
     "cross-env CI=1 vitest run",
+    "dotenv -e .env.test -- vitest run",
+    "env TZ=UTC vitest run",
+    "pnpm --filter app exec vitest",
+    "npx vitest@3 run",
     "./node_modules/.bin/vitest run",
     "tsc --noEmit && vitest run",
   ])("detects a test script that runs Vitest directly (%s)", (test: string): void => {
@@ -45,6 +49,21 @@ describe("scriptRunsVitest", (): void => {
 
   it("follows npm test from another script", (): void => {
     expect(scriptRunsVitest({ ci: "npm test", test: "vitest run" }, "ci")).toBe(true);
+  });
+
+  it.each([
+    "npm run vitest",
+    "npm --silent run --silent vitest --silent",
+    "pnpm run-script vitest",
+    "yarn vitest",
+    "bun vitest",
+  ])("follows a script named vitest (%s)", (test: string): void => {
+    expect(scriptRunsVitest({ test, vitest: "vitest run" })).toBe(true);
+    expect(scriptRunsVitest({ test, vitest: "jest" })).toBe(false);
+  });
+
+  it("does not treat a missing run script as a program", (): void => {
+    expect(scriptRunsVitest({ test: "npm run vitest" })).toBe(false);
   });
 
   it("stops on delegation cycles", (): void => {
