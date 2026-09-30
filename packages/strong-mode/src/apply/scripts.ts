@@ -14,6 +14,10 @@ const PACKAGE_MANAGER_VALUE_OPTIONS = new Set([
   "--cwd",
 ]);
 const EXEC_VALUE_OPTIONS = new Set(["-p", "--package"]);
+const PACKAGE_MANAGER_EXEC_VALUE_OPTIONS = new Set([
+  ...PACKAGE_MANAGER_VALUE_OPTIONS,
+  ...EXEC_VALUE_OPTIONS,
+]);
 const EXEC_STRING_OPTIONS = new Set(["-c", "--call"]);
 const EMPTY_OPTIONS = new Set<string>();
 const LAUNCHER_VALUE_OPTIONS: Readonly<Record<string, ReadonlySet<string>>> = {
@@ -143,7 +147,12 @@ const packageManagerTarget = (
   const argumentsWords = targetWords.slice(1);
   if (EXEC_SUBCOMMANDS.has(subcommand)) {
     return resolveCommand(
-      positionalWords(argumentsWords, EXEC_VALUE_OPTIONS, EXEC_STRING_OPTIONS, true),
+      positionalWords(
+        argumentsWords,
+        PACKAGE_MANAGER_EXEC_VALUE_OPTIONS,
+        EXEC_STRING_OPTIONS,
+        true,
+      ),
       scripts,
     );
   }
