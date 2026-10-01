@@ -40,6 +40,8 @@ describe("scriptRunsVitest", (): void => {
     "pnpm -C . -F app exec vitest",
     "npm -w app exec vitest",
     "yarn --cwd . vitest",
+    "pnpm -w vitest run",
+    "pnpm --workspace-root vitest run",
   ])("detects a test script that runs Vitest directly (%s)", (test: string): void => {
     expect(scriptRunsVitest({ test })).toBe(true);
   });
@@ -57,6 +59,13 @@ describe("scriptRunsVitest", (): void => {
     'npm run "test:unit"',
     "yarn --silent test:unit",
     "cross-env CI=1 npm run test:unit",
+    "pnpm -w test:unit",
+    "pnpm --workspace-root test:unit",
+    "npm --prefix ./ run test:unit",
+    "pnpm -C . run test:unit",
+    "pnpm --dir ./ run test:unit",
+    "yarn --cwd ./ run test:unit",
+    "bun --cwd . run test:unit",
   ])("follows delegation to another script (%s)", (test: string): void => {
     expect(scriptRunsVitest({ test, "test:unit": "vitest run" })).toBe(true);
   });
@@ -86,9 +95,7 @@ describe("scriptRunsVitest", (): void => {
     "npm run vitest",
     "npm --silent run --silent vitest --silent",
     "npm --prefix . run vitest",
-    "npm --workspace app run vitest",
     "/usr/bin/npm run vitest",
-    "yarn workspace app run vitest",
     "pnpm run-script vitest",
     "yarn vitest",
     "bun vitest",
@@ -103,6 +110,40 @@ describe("scriptRunsVitest", (): void => {
     expect(scriptRunsVitest({ test: "npm run vitest" })).toBe(false);
   });
 
+  it.each([
+    "npm --workspace api run unit",
+    "npm -w api run unit",
+    "npm --workspace=api run unit",
+    "npm run --workspace api unit",
+    "npm --prefix api run unit",
+    "npm --prefix=api run unit",
+    "pnpm --filter app run unit",
+    "pnpm -F app unit",
+    "pnpm --filter=app run unit",
+    "pnpm run --filter app unit",
+    "pnpm -C app run unit",
+    "pnpm --dir=app run unit",
+    "yarn workspace app run unit",
+    "yarn --cwd app run unit",
+    "bun --filter app run unit",
+    "bun -F app run unit",
+    "bun --cwd=app run unit",
+  ])("does not resolve another package's script locally (%s)", (test: string): void => {
+    expect(scriptRunsVitest({ test, unit: "vitest run" })).toBe(false);
+  });
+
+  it.each([
+    "npm --workspace app run vitest",
+    "yarn workspace app run vitest",
+    "bun --filter app run vitest",
+  ])(
+    "does not resolve another package's vitest script locally (%s)",
+    (test: string): void => {
+      expect(scriptRunsVitest({ test, vitest: "vitest run" })).toBe(false);
+      expect(scriptRunsVitest({ test, vitest: "jest" })).toBe(false);
+    },
+  );
+
   it("stops on delegation cycles", (): void => {
     expect(
       scriptRunsVitest({ test: "npm run a", a: "npm run b", b: "npm run a" }),
@@ -111,6 +152,7 @@ describe("scriptRunsVitest", (): void => {
 
   it.each([
     ["another runner", { test: "jest" }],
+    ["a dotenv separator after the program", { test: "dotenv jest -- vitest" }],
     [
       "a runner argument that resembles delegation",
       { test: "yarn jest run vitest", vitest: "vitest run" },

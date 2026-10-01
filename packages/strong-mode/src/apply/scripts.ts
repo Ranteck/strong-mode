@@ -1,23 +1,19 @@
-const PACKAGE_MANAGERS = new Set(["npm", "pnpm", "yarn", "bun"]);
+import { PACKAGE_MANAGERS, type PackageManager } from "../types.js";
+
 const RUN_SUBCOMMANDS = new Set(["run", "run-script"]);
 const EXEC_SUBCOMMANDS = new Set(["exec", "dlx", "x"]);
 const LAUNCHERS = new Set(["npx", "bunx", "pnpx", "cross-env", "env", "dotenv"]);
 const ENV_ASSIGNMENT = /^[A-Za-z_]\w*=/u;
-const PACKAGE_MANAGER_VALUE_OPTIONS = new Set([
-  "--prefix",
-  "-C",
-  "--dir",
-  "--filter",
-  "-F",
-  "--workspace",
-  "-w",
-  "--cwd",
-]);
+const PACKAGE_MANAGER_VALUE_OPTIONS: Readonly<
+  Record<PackageManager, ReadonlySet<string>>
+> = {
+  npm: new Set(["--prefix", "-w", "--workspace"]),
+  pnpm: new Set(["-C", "--dir", "--filter", "-F"]),
+  yarn: new Set(["--cwd"]),
+  bun: new Set(["--cwd", "--filter", "-F"]),
+};
+const DIRECTORY_OPTIONS = new Set(["--prefix", "-C", "--dir", "--cwd"]);
 const EXEC_VALUE_OPTIONS = new Set(["-p", "--package"]);
-const PACKAGE_MANAGER_EXEC_VALUE_OPTIONS = new Set([
-  ...PACKAGE_MANAGER_VALUE_OPTIONS,
-  ...EXEC_VALUE_OPTIONS,
-]);
 const EXEC_STRING_OPTIONS = new Set(["-c", "--call"]);
 const EMPTY_OPTIONS = new Set<string>();
 const LAUNCHER_VALUE_OPTIONS: Readonly<Record<string, ReadonlySet<string>>> = {
@@ -37,6 +33,11 @@ const LAUNCHER_STRING_OPTIONS: Readonly<Record<string, ReadonlySet<string>>> = {
 interface CommandTarget {
   kind: "program" | "script";
   name: string;
+}
+
+interface PackageManagerCommand {
+  words: readonly string[];
+  selectsPackage: boolean;
 }
 
 // The commands of a script (split on &&, ||, ; and |), each as its words with
@@ -89,40 +90,57 @@ const positionalWords = (
   return [];
 };
 
-const launchedWords = (
-  program: string,
-  words: readonly string[],
-): readonly string[] => {
-  const separator = program === "dotenv" ? words.indexOf("--") : -1;
-  if (separator !== -1) {
-    return words.slice(separator + 1);
-  }
-  return positionalWords(
+const launchedWords = (program: string, words: readonly string[]): readonly string[] =>
+  positionalWords(
     words,
     LAUNCHER_VALUE_OPTIONS[program] ?? EMPTY_OPTIONS,
     LAUNCHER_STRING_OPTIONS[program] ?? EMPTY_OPTIONS,
     program !== "dotenv",
   );
+
+const selectsOtherPackage = (
+  packageManager: PackageManager,
+  word: string,
+  nextWord: string | undefined,
+): boolean => {
+  const [option = "", inlineValue] = word.split("=");
+  if (!PACKAGE_MANAGER_VALUE_OPTIONS[packageManager].has(option)) {
+    return false;
+  }
+  const value = inlineValue ?? nextWord;
+  return !DIRECTORY_OPTIONS.has(option) || (value !== "." && value !== "./");
 };
 
 const packageManagerWords = (
-  packageManager: string,
+  packageManager: PackageManager,
   words: readonly string[],
-): readonly string[] => {
-  const targetWords = positionalWords(words, PACKAGE_MANAGER_VALUE_OPTIONS);
-  return packageManager === "yarn" && targetWords[0] === "workspace"
-    ? positionalWords(targetWords.slice(2), PACKAGE_MANAGER_VALUE_OPTIONS)
-    : targetWords;
+): PackageManagerCommand => {
+  const valueOptions = PACKAGE_MANAGER_VALUE_OPTIONS[packageManager];
+  const targetWords = positionalWords(words, valueOptions);
+  const options = words.slice(0, words.length - targetWords.length);
+  const selectsPackage = options.some((word, index): boolean =>
+    selectsOtherPackage(packageManager, word, options[index + 1]),
+  );
+  if (packageManager === "yarn" && targetWords[0] === "workspace") {
+    return {
+      words: positionalWords(targetWords.slice(2), valueOptions),
+      selectsPackage: true,
+    };
+  }
+  return { words: targetWords, selectsPackage };
 };
 
 const runTarget = (
-  packageManager: string,
+  packageManager: PackageManager,
   words: readonly string[],
   scripts: Readonly<Record<string, string>> | undefined,
 ): CommandTarget | undefined => {
-  const targetWords = positionalWords(words, PACKAGE_MANAGER_VALUE_OPTIONS);
+  const { words: targetWords, selectsPackage } = packageManagerWords(
+    packageManager,
+    words,
+  );
   const name = targetWords[0];
-  if (name === undefined) {
+  if (name === undefined || selectsPackage) {
     return undefined;
   }
   if (
@@ -135,11 +153,14 @@ const runTarget = (
 };
 
 const packageManagerTarget = (
-  packageManager: string,
+  packageManager: PackageManager,
   words: readonly string[],
   scripts: Readonly<Record<string, string>> | undefined,
 ): CommandTarget | undefined => {
-  const targetWords = packageManagerWords(packageManager, words);
+  const { words: targetWords, selectsPackage } = packageManagerWords(
+    packageManager,
+    words,
+  );
   const subcommand = targetWords[0];
   if (subcommand === undefined) {
     return undefined;
@@ -149,7 +170,10 @@ const packageManagerTarget = (
     return resolveCommand(
       positionalWords(
         argumentsWords,
-        PACKAGE_MANAGER_EXEC_VALUE_OPTIONS,
+        new Set([
+          ...PACKAGE_MANAGER_VALUE_OPTIONS[packageManager],
+          ...EXEC_VALUE_OPTIONS,
+        ]),
         EXEC_STRING_OPTIONS,
         true,
       ),
@@ -157,10 +181,13 @@ const packageManagerTarget = (
     );
   }
   if (RUN_SUBCOMMANDS.has(subcommand)) {
-    return runTarget(packageManager, argumentsWords, scripts);
+    return selectsPackage
+      ? undefined
+      : runTarget(packageManager, argumentsWords, scripts);
   }
   if (packageManager === "npm" || scripts?.[subcommand] !== undefined) {
-    return { kind: "script", name: subcommand };
+    // The root scripts cannot identify what another package's script runs.
+    return selectsPackage ? undefined : { kind: "script", name: subcommand };
   }
   return resolveCommand(targetWords, scripts);
 };
@@ -176,8 +203,11 @@ const resolveCommand = (
   }
   const program = programName(word);
   const argumentsWords = words.slice(index + 1);
-  if (PACKAGE_MANAGERS.has(program)) {
-    return packageManagerTarget(program, argumentsWords, scripts);
+  const packageManager = PACKAGE_MANAGERS.find(
+    (manager): boolean => manager === program,
+  );
+  if (packageManager !== undefined) {
+    return packageManagerTarget(packageManager, argumentsWords, scripts);
   }
   if (LAUNCHERS.has(program)) {
     return resolveCommand(launchedWords(program, argumentsWords), scripts);
