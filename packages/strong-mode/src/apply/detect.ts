@@ -12,23 +12,6 @@ export interface ApplyDetection {
   readonly projectName: string;
 }
 
-const validateScripts = (parsed: object, filePath: string): void => {
-  if (!Object.hasOwn(parsed, "scripts")) {
-    return;
-  }
-  const scripts: unknown = (parsed as Record<string, unknown>).scripts;
-  if (typeof scripts !== "object" || scripts === null || Array.isArray(scripts)) {
-    throw new Error(`Invalid scripts in ${filePath}: expected an object of strings.`);
-  }
-  for (const [name, value] of Object.entries(scripts)) {
-    if (typeof value !== "string") {
-      throw new Error(
-        `Invalid script ${JSON.stringify(name)} in ${filePath}: expected a string.`,
-      );
-    }
-  }
-};
-
 const readJson = async <T extends object>(filePath: string): Promise<T> => {
   let source: string;
   try {
@@ -47,7 +30,6 @@ const readJson = async <T extends object>(filePath: string): Promise<T> => {
       `Expected a JSON object in ${filePath}, got ${Array.isArray(parsed) ? "array" : String(parsed)}.`,
     );
   }
-  validateScripts(parsed, filePath);
   return parsed as T;
 };
 
@@ -70,7 +52,6 @@ export const readJsonIfExists = async <T extends object>(
       `Expected a JSON object in ${filePath}, got ${Array.isArray(parsed) ? "array" : String(parsed)}.`,
     );
   }
-  validateScripts(parsed, filePath);
   return parsed as T;
 };
 

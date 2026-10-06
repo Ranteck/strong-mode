@@ -153,6 +153,7 @@ describe("executeApplyPlan dependent files", (): void => {
       readonly force: boolean;
       readonly dryRun?: boolean;
       readonly scripts?: Record<string, string>;
+      readonly devDependencies?: Record<string, string>;
     },
   ): ReturnType<typeof executeApplyPlan> => {
     const base = createPlan(tempDir);
@@ -165,6 +166,9 @@ describe("executeApplyPlan dependent files", (): void => {
           next: {
             ...base.packageJsonPlan.next,
             scripts: flags.scripts ?? { test: "vitest run" },
+            ...(flags.devDependencies === undefined
+              ? {}
+              : { devDependencies: flags.devDependencies }),
           },
         },
       },
@@ -317,6 +321,24 @@ describe("executeApplyPlan dependent files", (): void => {
     } finally {
       info.mockRestore();
     }
+  });
+
+  it("skips the Vitest env test when another runner is declared", async (): Promise<void> => {
+    const tempDir = await createProject();
+    const result = await run(
+      tempDir,
+      { filesToCreate: [envFile(false), envTestFile], conflictingFiles: [] },
+      {
+        yes: true,
+        force: false,
+        scripts: { test: "vitest run" },
+        devDependencies: { "@playwright/test": "^1.0.0" },
+      },
+    );
+
+    expect(result.createdFiles).toEqual(["src/env.ts"]);
+    expect(result.skippedFiles).toContain("tests/env.test.ts");
+    expect(await envTestExists(tempDir)).toBe(false);
   });
 
   it("writes tests/env.test.ts when src/env.ts is created", async (): Promise<void> => {

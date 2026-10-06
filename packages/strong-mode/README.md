@@ -26,7 +26,7 @@ npx strong-mode
 - Complexity limits: cyclomatic ≤ 10, depth ≤ 3, params ≤ 4
 - Type-aware linting of every TypeScript file in the project (any framework layout) through `tsconfig.eslint.json`
 
-**Runtime validation** (`src/env.ts`, tested by `tests/env.test.ts` — added only when the project uses the template's `src/env.ts` and its `test` script clearly runs only Vitest):
+**Runtime validation** (`src/env.ts`, tested by `tests/env.test.ts` — added only when the project uses the template's `src/env.ts` and its `test` script clearly runs only Vitest and no other test runner is installed):
 
 - Zod-based env validation template — all `process.env` access goes through here; invalid values throw at startup
 

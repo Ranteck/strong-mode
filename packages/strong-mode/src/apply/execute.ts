@@ -237,14 +237,24 @@ const applyConflictingFile = async (
 const isDependentFile = (managedFile: ManagedFile): boolean =>
   MANAGED_FILE_DEPENDENCIES[managedFile.relativePath] !== undefined;
 
+const hasOtherTestRunner = (packageJson: PackageJsonLike | undefined): boolean =>
+  ["jest", "@playwright/test", "mocha", "ava", "jasmine"].some(
+    (runner): boolean =>
+      Object.hasOwn(packageJson?.dependencies ?? {}, runner) ||
+      Object.hasOwn(packageJson?.devDependencies ?? {}, runner),
+  );
+
 const applyDependentFiles = async (
   dependents: readonly ManagedFile[],
-  scripts: PackageJsonLike["scripts"],
+  packageJson: PackageJsonLike | undefined,
   options: ExecuteApplyPlanOptions,
   results: FileResults,
 ): Promise<void> => {
   for (const managedFile of dependents) {
-    if (VITEST_TEST_FILES.has(managedFile.relativePath) && !scriptRunsVitest(scripts)) {
+    if (
+      VITEST_TEST_FILES.has(managedFile.relativePath) &&
+      (hasOtherTestRunner(packageJson) || !scriptRunsVitest(packageJson?.scripts))
+    ) {
       log.info(
         `Skipping ${managedFile.relativePath}: the project's "test" script could not be confirmed to run only Vitest. You can add the file if it does.`,
       );
@@ -574,9 +584,7 @@ export const executeApplyPlan = async (
   // follow the package.json that is kept: the current one when its update was skipped.
   await applyDependentFiles(
     [...plan.filesToCreate, ...plan.conflictingFiles].filter(isDependentFile),
-    packageJsonOutcome === "skipped"
-      ? plan.packageJsonPlan.current?.scripts
-      : nextPackageJson.scripts,
+    packageJsonOutcome === "skipped" ? plan.packageJsonPlan.current : nextPackageJson,
     options,
     results,
   );
