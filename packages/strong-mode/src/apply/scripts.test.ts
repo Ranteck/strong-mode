@@ -129,7 +129,6 @@ describe("scriptRunsVitest closed grammar", (): void => {
       scripts: { test: "pnpm --filter:app", "--filter:app": "vitest run" },
       expected: false,
     },
-    commandCase("tsc ~ && vitest run", false, "syntax rejection for tilde"),
     {
       label: "rejects shorthand without colon",
       scripts: { test: "yarn unit", unit: "vitest run" },
@@ -191,11 +190,6 @@ describe("scriptRunsVitest closed grammar", (): void => {
       "tsc-watch --onSuccess=jest && vitest run",
       false,
       "rejects preparation executable outside the exact word boundary",
-    ),
-    commandCase(
-      "false && vitest || jest",
-      false,
-      "rejects unrecognized false command and alternative syntax",
     ),
     ...["jest && vitest run", "vitest run && node --test"].map(
       (command): ScriptCase =>
@@ -322,15 +316,12 @@ describe("scriptRunsVitest closed grammar", (): void => {
     expect(scriptRunsVitest(scripts, name)).toBe(expected);
   });
 
-  it("rejects remaining forbidden shell characters", (): void => {
-    const characters = "|;&<>(){}[]$`'\"#\\%^\r\n\u000b\f!*?";
+  it("rejects every forbidden shell character", (): void => {
+    const characters = "|;&<>(){}[]$`'\"#\\%^~\r\n\u000b\f!*?";
     for (const character of characters) {
       expect(
         scriptRunsVitest({
-          test:
-            character === "|"
-              ? "tsc || jest && vitest run"
-              : `tsc ${character} && vitest run`,
+          test: `tsc ${character} && vitest run`,
         }),
         `syntax rejection for ${JSON.stringify(character)}`,
       ).toBe(false);

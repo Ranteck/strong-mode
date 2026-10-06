@@ -244,22 +244,19 @@ const applyDependentFiles = async (
   options: ExecuteApplyPlanOptions,
   results: FileResults,
 ): Promise<void> => {
-  const otherTestRunner = OTHER_TEST_RUNNERS.find((runner): boolean =>
+  const otherTestRunners = OTHER_TEST_RUNNERS.filter((runner): boolean =>
     isDeclared(packageJson ?? {}, runner),
   );
-  const skipReason =
-    otherTestRunner !== undefined
-      ? `declared test runner "${otherTestRunner}" may also collect the file. You can add the file if that runner does not look in tests/.`
-      : scriptRunsVitest(packageJson?.scripts)
-        ? undefined
-        : 'the project\'s "test" script could not be confirmed to run only Vitest. You can add the file if it does.';
-  for (const managedFile of dependents) {
-    if (VITEST_TEST_FILES.has(managedFile.relativePath) && skipReason !== undefined) {
-      log.info(`Skipping ${managedFile.relativePath}: ${skipReason}`);
-      results.skippedFiles.push(managedFile.relativePath);
-      continue;
-    }
+  const skipReasons = otherTestRunners.map(
+    (runner): string => `declared test runner "${runner}" may also collect the file`,
+  );
+  if (!scriptRunsVitest(packageJson?.scripts)) {
+    skipReasons.unshift(
+      'the project\'s "test" script could not be confirmed to run only Vitest',
+    );
+  }
 
+  for (const managedFile of dependents) {
     const dependency = MANAGED_FILE_DEPENDENCIES[managedFile.relativePath];
     if (dependency !== undefined && results.conflictedFiles.includes(dependency)) {
       log.warn(
@@ -273,6 +270,12 @@ const applyDependentFiles = async (
       log.info(
         `Skipping ${managedFile.relativePath}: ${dependency} does not use the strong-mode template.`,
       );
+      results.skippedFiles.push(managedFile.relativePath);
+      continue;
+    }
+
+    if (VITEST_TEST_FILES.has(managedFile.relativePath) && skipReasons.length > 0) {
+      log.info(`Skipping ${managedFile.relativePath}: ${skipReasons.join("; ")}.`);
       results.skippedFiles.push(managedFile.relativePath);
       continue;
     }

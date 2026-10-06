@@ -78,6 +78,7 @@ export const MANAGED_FILE_DEPENDENCIES: Readonly<Record<string, string>> = {
 
 // Managed tests written for Vitest. They are only added when the project's "test"
 // script clearly runs only Vitest and no OTHER_TEST_RUNNERS package is declared.
+// Another runner would collect the Vitest-only file and fail.
 export const VITEST_TEST_FILES: ReadonlySet<string> = new Set(["tests/env.test.ts"]);
 
 // Common runners that can collect tests/*.test.ts, exposing Vitest-only tests to them.

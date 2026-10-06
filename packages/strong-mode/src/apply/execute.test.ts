@@ -3,6 +3,7 @@ import os from "node:os";
 import path from "node:path";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { log } from "@clack/prompts";
+import * as prompts from "./prompts.js";
 import type { ApplyPlan, ManagedFile } from "./types.js";
 
 const { runCommandMock, runCommandCaptureMock, runPostApplyChecksMock } = vi.hoisted(
@@ -316,10 +317,9 @@ describe("executeApplyPlan dependent files", (): void => {
       expect(result.skippedFiles).toContain("tests/env.test.ts");
       expect(await envTestExists(tempDir)).toBe(false);
       const messages = info.mock.calls.flat().join("\n");
-      expect(messages).toContain(
-        '"test" script could not be confirmed to run only Vitest',
+      expect(info).toHaveBeenCalledWith(
+        'Skipping tests/env.test.ts: the project\'s "test" script could not be confirmed to run only Vitest.',
       );
-      expect(messages).toContain("add the file if it does");
       expect(messages).not.toContain(testScript);
       expect(messages).not.toContain("private-value");
     } finally {
@@ -355,12 +355,167 @@ describe("executeApplyPlan dependent files", (): void => {
         expect(result.createdFiles).toEqual(["src/env.ts"]);
         expect(result.skippedFiles).toContain("tests/env.test.ts");
         expect(await envTestExists(tempDir)).toBe(false);
-        const messages = info.mock.calls.flat().join("\n");
-        expect(messages).toContain(
-          `Skipping tests/env.test.ts: declared test runner "${runner}" may also collect the file. You can add the file if that runner does not look in tests/.`,
+        expect(info).toHaveBeenCalledWith(
+          `Skipping tests/env.test.ts: declared test runner "${runner}" may also collect the file.`,
         );
       } finally {
         info.mockRestore();
+      }
+    },
+  );
+
+  it("reports both a declared runner and an unrecognized script", async (): Promise<void> => {
+    const tempDir = await createProject();
+    const testScript = "env PRIVATE_TOKEN=private-value vitest run";
+    const info = vi.spyOn(log, "info").mockImplementation((): void => undefined);
+    try {
+      const result = await run(
+        tempDir,
+        { filesToCreate: [envFile(false), envTestFile], conflictingFiles: [] },
+        {
+          yes: true,
+          force: false,
+          scripts: { test: testScript },
+          devDependencies: { jest: "^1.0.0" },
+        },
+      );
+
+      expect(result.skippedFiles).toContain("tests/env.test.ts");
+      expect(await envTestExists(tempDir)).toBe(false);
+      expect(info).toHaveBeenCalledWith(
+        'Skipping tests/env.test.ts: the project\'s "test" script could not be confirmed to run only Vitest; declared test runner "jest" may also collect the file.',
+      );
+      expect(info.mock.calls.flat().join("\n")).not.toContain("private-value");
+    } finally {
+      info.mockRestore();
+    }
+  });
+
+  it("names every declared runner across dependency sections", async (): Promise<void> => {
+    const tempDir = await createProject();
+    const info = vi.spyOn(log, "info").mockImplementation((): void => undefined);
+    try {
+      const result = await run(
+        tempDir,
+        { filesToCreate: [envFile(false), envTestFile], conflictingFiles: [] },
+        {
+          yes: true,
+          force: false,
+          dependencies: { jest: "^1.0.0" },
+          devDependencies: { mocha: "^1.0.0" },
+        },
+      );
+
+      expect(result.skippedFiles).toContain("tests/env.test.ts");
+      expect(await envTestExists(tempDir)).toBe(false);
+      expect(info).toHaveBeenCalledWith(
+        'Skipping tests/env.test.ts: declared test runner "jest" may also collect the file; declared test runner "mocha" may also collect the file.',
+      );
+    } finally {
+      info.mockRestore();
+    }
+  });
+
+  it("uses the current package.json runner veto when its update is skipped", async (): Promise<void> => {
+    const tempDir = await createProject();
+    const base = createPlan(tempDir);
+    const current = {
+      ...base.packageJsonPlan.current,
+      scripts: { test: "vitest run" },
+      devDependencies: { jest: "^1.0.0" },
+    };
+    const currentSource = `${JSON.stringify(current, null, 2)}\n`;
+    await writeFile(path.join(tempDir, "package.json"), currentSource);
+    const decision = vi
+      .spyOn(prompts, "promptFileConflictResolution")
+      .mockResolvedValue("skip");
+    const info = vi.spyOn(log, "info").mockImplementation((): void => undefined);
+    try {
+      const result = await executeApplyPlan(
+        {
+          ...base,
+          filesToCreate: [envFile(false), envTestFile],
+          conflictingFiles: [],
+          packageJsonPlan: {
+            ...base.packageJsonPlan,
+            current,
+            next: { ...base.packageJsonPlan.next, scripts: { test: "vitest run" } },
+            summary: { ...base.packageJsonPlan.summary, changed: true },
+          },
+        },
+        {
+          targetDir: tempDir,
+          packageManager: "npm",
+          yes: false,
+          force: false,
+          dryRun: false,
+          backup: false,
+          shouldInstall: false,
+          shouldRunChecks: false,
+        },
+      );
+
+      expect(result.packageJsonUpdated).toBe(false);
+      expect(await readFile(path.join(tempDir, "package.json"), "utf8")).toBe(
+        currentSource,
+      );
+      expect(result.skippedFiles).toContain("tests/env.test.ts");
+      expect(await envTestExists(tempDir)).toBe(false);
+      expect(info).toHaveBeenCalledWith(
+        'Skipping tests/env.test.ts: declared test runner "jest" may also collect the file.',
+      );
+    } finally {
+      decision.mockRestore();
+      info.mockRestore();
+    }
+  });
+
+  it.each(["conflict", "skip"] as const)(
+    "preserves the dependency outcome before the Vitest veto when src/env.ts resolution is %s",
+    async (resolution): Promise<void> => {
+      const tempDir = await createProject(PROJECT_ENV);
+      const decision = vi
+        .spyOn(prompts, "promptFileConflictResolution")
+        .mockResolvedValue(resolution);
+      const info = vi.spyOn(log, "info").mockImplementation((): void => undefined);
+      const warn = vi.spyOn(log, "warn").mockImplementation((): void => undefined);
+      try {
+        const result = await run(
+          tempDir,
+          { filesToCreate: [envTestFile], conflictingFiles: [envFile(true)] },
+          {
+            yes: false,
+            force: false,
+            scripts: { test: "jest" },
+            devDependencies: { jest: "^1.0.0" },
+          },
+        );
+
+        if (resolution === "conflict") {
+          expect(result.deferredFiles).toEqual(["tests/env.test.ts"]);
+          expect(result.skippedFiles).not.toContain("tests/env.test.ts");
+          expect(warn).toHaveBeenCalledWith(
+            "Not adding tests/env.test.ts yet: resolve the conflict in src/env.ts and re-run strong-mode.",
+          );
+        } else {
+          expect(result.deferredFiles).toEqual([]);
+          expect(result.skippedFiles).toContain("tests/env.test.ts");
+          expect(info).toHaveBeenCalledWith(
+            "Skipping tests/env.test.ts: src/env.ts does not use the strong-mode template.",
+          );
+        }
+        expect(await envTestExists(tempDir)).toBe(false);
+        const messages = [...info.mock.calls, ...warn.mock.calls].flat().join("\n");
+        expect(messages).not.toContain(
+          '"test" script could not be confirmed to run only Vitest',
+        );
+        expect(messages).not.toContain(
+          'declared test runner "jest" may also collect the file',
+        );
+      } finally {
+        decision.mockRestore();
+        info.mockRestore();
+        warn.mockRestore();
       }
     },
   );
