@@ -3,6 +3,7 @@ import os from "node:os";
 import path from "node:path";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { log } from "@clack/prompts";
+import { OTHER_TEST_RUNNERS } from "./constants.js";
 import type { ApplyPlan, ManagedFile } from "./types.js";
 
 const { runCommandMock, runCommandCaptureMock, runPostApplyChecksMock } = vi.hoisted(
@@ -153,6 +154,7 @@ describe("executeApplyPlan dependent files", (): void => {
       readonly force: boolean;
       readonly dryRun?: boolean;
       readonly scripts?: Record<string, string>;
+      readonly dependencies?: Record<string, string>;
       readonly devDependencies?: Record<string, string>;
     },
   ): ReturnType<typeof executeApplyPlan> => {
@@ -166,6 +168,9 @@ describe("executeApplyPlan dependent files", (): void => {
           next: {
             ...base.packageJsonPlan.next,
             scripts: flags.scripts ?? { test: "vitest run" },
+            ...(flags.dependencies === undefined
+              ? {}
+              : { dependencies: flags.dependencies }),
             ...(flags.devDependencies === undefined
               ? {}
               : { devDependencies: flags.devDependencies }),
@@ -323,23 +328,43 @@ describe("executeApplyPlan dependent files", (): void => {
     }
   });
 
-  it("skips the Vitest env test when another runner is declared", async (): Promise<void> => {
-    const tempDir = await createProject();
-    const result = await run(
-      tempDir,
-      { filesToCreate: [envFile(false), envTestFile], conflictingFiles: [] },
-      {
-        yes: true,
-        force: false,
-        scripts: { test: "vitest run" },
-        devDependencies: { "@playwright/test": "^1.0.0" },
-      },
-    );
+  it.each(
+    OTHER_TEST_RUNNERS.flatMap((runner) =>
+      (["dependencies", "devDependencies"] as const).map((section) => ({
+        runner,
+        section,
+      })),
+    ),
+  )(
+    "vetoes the Vitest env test for $runner in $section",
+    async ({ runner, section }): Promise<void> => {
+      const tempDir = await createProject();
+      const info = vi.spyOn(log, "info").mockImplementation((): void => undefined);
+      try {
+        const result = await run(
+          tempDir,
+          { filesToCreate: [envFile(false), envTestFile], conflictingFiles: [] },
+          {
+            yes: true,
+            force: false,
+            scripts: { test: "vitest run" },
+            [section]: { [runner]: "^1.0.0" },
+          },
+        );
 
-    expect(result.createdFiles).toEqual(["src/env.ts"]);
-    expect(result.skippedFiles).toContain("tests/env.test.ts");
-    expect(await envTestExists(tempDir)).toBe(false);
-  });
+        expect(result.createdFiles).toEqual(["src/env.ts"]);
+        expect(result.skippedFiles).toContain("tests/env.test.ts");
+        expect(await envTestExists(tempDir)).toBe(false);
+        const messages = info.mock.calls.flat().join("\n");
+        expect(messages).toContain(
+          `Skipping tests/env.test.ts: declared test runner "${runner}" would also collect the file.`,
+        );
+        expect(messages).not.toContain("You can add the file");
+      } finally {
+        info.mockRestore();
+      }
+    },
+  );
 
   it("writes tests/env.test.ts when src/env.ts is created", async (): Promise<void> => {
     const tempDir = await createProject();

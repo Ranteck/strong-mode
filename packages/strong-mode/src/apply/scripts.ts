@@ -26,7 +26,7 @@ export const scriptRunsVitest = (
   scripts: Readonly<Record<string, string>> | undefined,
   name = "test",
 ): boolean => {
-  if (scripts === undefined) {
+  if (typeof scripts !== "object" || (scripts as unknown) === null) {
     return false;
   }
   const memo = new Map<string, ScriptResult>();

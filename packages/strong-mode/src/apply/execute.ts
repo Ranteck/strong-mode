@@ -4,13 +4,14 @@ import { runPostApplyChecks } from "./checks.js";
 import {
   LOCKSTEP_DEV_DEPENDENCIES,
   MANAGED_FILE_DEPENDENCIES,
+  OTHER_TEST_RUNNERS,
   REPLACED_DEV_DEPENDENCIES,
   VITEST_TEST_FILES,
 } from "./constants.js";
 import { readInstalledVersion } from "./installed.js";
 import { backupFile, fileExists, readTextIfExists, writeTextFile } from "./io.js";
 import { isMergeableManagedFile, mergeManagedFileContent } from "./merge.js";
-import { dropReplacedDependencies } from "./patchers.js";
+import { dropReplacedDependencies, isDeclared } from "./patchers.js";
 import { scriptRunsVitest } from "./scripts.js";
 import { type ConflictResolution, promptFileConflictResolution } from "./prompts.js";
 import type {
@@ -237,26 +238,24 @@ const applyConflictingFile = async (
 const isDependentFile = (managedFile: ManagedFile): boolean =>
   MANAGED_FILE_DEPENDENCIES[managedFile.relativePath] !== undefined;
 
-const hasOtherTestRunner = (packageJson: PackageJsonLike | undefined): boolean =>
-  ["jest", "@playwright/test", "mocha", "ava", "jasmine"].some(
-    (runner): boolean =>
-      Object.hasOwn(packageJson?.dependencies ?? {}, runner) ||
-      Object.hasOwn(packageJson?.devDependencies ?? {}, runner),
-  );
-
 const applyDependentFiles = async (
   dependents: readonly ManagedFile[],
   packageJson: PackageJsonLike | undefined,
   options: ExecuteApplyPlanOptions,
   results: FileResults,
 ): Promise<void> => {
+  const otherTestRunner = OTHER_TEST_RUNNERS.find((runner): boolean =>
+    isDeclared(packageJson ?? {}, runner),
+  );
   for (const managedFile of dependents) {
     if (
       VITEST_TEST_FILES.has(managedFile.relativePath) &&
-      (hasOtherTestRunner(packageJson) || !scriptRunsVitest(packageJson?.scripts))
+      (otherTestRunner !== undefined || !scriptRunsVitest(packageJson?.scripts))
     ) {
       log.info(
-        `Skipping ${managedFile.relativePath}: the project's "test" script could not be confirmed to run only Vitest. You can add the file if it does.`,
+        otherTestRunner === undefined
+          ? `Skipping ${managedFile.relativePath}: the project's "test" script could not be confirmed to run only Vitest. You can add the file if it does.`
+          : `Skipping ${managedFile.relativePath}: declared test runner "${otherTestRunner}" would also collect the file.`,
       );
       results.skippedFiles.push(managedFile.relativePath);
       continue;

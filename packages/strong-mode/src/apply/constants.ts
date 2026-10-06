@@ -80,6 +80,15 @@ export const MANAGED_FILE_DEPENDENCIES: Readonly<Record<string, string>> = {
 // script runs Vitest; another runner (Jest, node --test) would pick them up and fail.
 export const VITEST_TEST_FILES: ReadonlySet<string> = new Set(["tests/env.test.ts"]);
 
+export const OTHER_TEST_RUNNERS: readonly string[] = [
+  "jest",
+  "@playwright/test",
+  "playwright",
+  "mocha",
+  "ava",
+  "jasmine",
+];
+
 // Peers that packages added by the template require from packages the project may
 // already declare. Only checked when the template adds the package itself; keep the
 // range in sync with that package's own peerDependencies when bumping the template.

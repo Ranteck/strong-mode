@@ -178,7 +178,7 @@ const summarizeChanges = (
   changed: JSON.stringify(before ?? {}) !== JSON.stringify(after),
 });
 
-const isDeclared = (packageJson: PackageJsonLike, name: string): boolean =>
+export const isDeclared = (packageJson: PackageJsonLike, name: string): boolean =>
   packageJson.devDependencies?.[name] !== undefined ||
   packageJson.dependencies?.[name] !== undefined;
 

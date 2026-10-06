@@ -54,6 +54,7 @@ describe("scriptRunsVitest closed grammar", (): void => {
       expected: true,
     },
     ...[
+      "vitest --globals",
       "vitest run --config custom.ts",
       "vitest run tests",
       "./bin/vitest run",
@@ -129,8 +130,8 @@ describe("scriptRunsVitest closed grammar", (): void => {
       expected: false,
     },
     {
-      label: "rejects tilde expansion in script name",
-      scripts: { test: "npm run ~", "~": "vitest run", "/home/denis": "jest" },
+      label: "rejects tilde syntax in script name",
+      scripts: { test: "npm run ~", "~": "vitest run" },
       expected: false,
     },
     {
@@ -146,6 +147,12 @@ describe("scriptRunsVitest closed grammar", (): void => {
     {
       label: "rejects delegation to another runner",
       scripts: { test: "npm run unit", unit: "jest" },
+      expected: false,
+    },
+    {
+      label: "rejects bun test from ci even with a Vitest test script",
+      scripts: { ci: "bun test", test: "vitest run" },
+      name: "ci",
       expected: false,
     },
     {
@@ -170,6 +177,11 @@ describe("scriptRunsVitest closed grammar", (): void => {
       expected: false,
     },
     { label: "rejects absent scripts", scripts: undefined, expected: false },
+    {
+      label: "rejects null scripts",
+      scripts: JSON.parse("null") as Record<string, string>,
+      expected: false,
+    },
     ...["tsc --noEmit", "eslint .", "prettier --check ."].map(
       (preparation): ScriptCase =>
         commandCase(
@@ -179,11 +191,13 @@ describe("scriptRunsVitest closed grammar", (): void => {
         ),
     ),
     commandCase("eslint .", false, "preparation alone cannot confirm Vitest"),
-    ...[
-      "jest && vitest run",
-      "vitest run && node --test",
-      "false && vitest || jest",
-    ].map(
+    commandCase(
+      "tsc-watch --onSuccess=jest && vitest run",
+      false,
+      "rejects preparation executable outside the exact word boundary",
+    ),
+    commandCase("false && vitest || jest", false, "rejects pipe syntax in alternative"),
+    ...["jest && vitest run", "vitest run && node --test"].map(
       (command): ScriptCase =>
         commandCase(command, false, `rejects mixed or alternative runners: ${command}`),
     ),
