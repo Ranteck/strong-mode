@@ -3,6 +3,7 @@ import os from "node:os";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
 import { runApplyCommand } from "./apply-command.js";
+import { detectApplyInput } from "./apply/detect.js";
 
 const ANSI_PATTERN = new RegExp(String.raw`\u001B\[[0-9;]*m`, "gu");
 
@@ -64,6 +65,73 @@ const createExistingProject = async (): Promise<string> => {
 };
 
 describe("runApplyCommand", (): void => {
+  it.each([
+    { scripts: null, offending: "scripts" },
+    { scripts: [], offending: "scripts" },
+    { scripts: "vitest run", offending: "scripts" },
+    { scripts: 42, offending: "scripts" },
+    { scripts: true, offending: "scripts" },
+    { scripts: { test: 42 }, offending: 'script "test"' },
+    { scripts: { test: "vitest run", lint: null }, offending: 'script "lint"' },
+    { scripts: { test: false }, offending: 'script "test"' },
+    { scripts: { test: [] }, offending: 'script "test"' },
+    { scripts: { test: {} }, offending: 'script "test"' },
+  ])(
+    "rejects malformed scripts before writing any file ($scripts)",
+    async ({ scripts, offending }): Promise<void> => {
+      const tempDir = await createExistingProject();
+      const packageJsonPath = path.join(tempDir, "package.json");
+      const packageJson = JSON.parse(await readFile(packageJsonPath, "utf8")) as Record<
+        string,
+        unknown
+      >;
+      await writeFile(
+        packageJsonPath,
+        `${JSON.stringify({ ...packageJson, scripts }, null, 2)}\n`,
+      );
+      const beforeFiles = await readdir(tempDir);
+      const beforePackageJson = await readFile(packageJsonPath, "utf8");
+
+      await expect(
+        runApplyCommand({
+          command: "apply",
+          cwd: tempDir,
+          packageManager: "npm",
+          install: false,
+          runChecks: false,
+          yes: true,
+          dryRun: false,
+          backup: false,
+          force: false,
+        }),
+      ).rejects.toThrow(`Invalid ${offending} in ${packageJsonPath}`);
+      expect(await readdir(tempDir)).toEqual(beforeFiles);
+      expect(await readFile(packageJsonPath, "utf8")).toBe(beforePackageJson);
+    },
+  );
+
+  it("validates target scripts before reading the template", async (): Promise<void> => {
+    const tempDir = await mkdtemp(path.join(os.tmpdir(), "strong-mode-detect-"));
+    const packageJsonPath = path.join(tempDir, "package.json");
+    await writeFile(packageJsonPath, '{"scripts":{"test":42}}');
+
+    await expect(
+      detectApplyInput(tempDir, path.join(tempDir, "missing-template")),
+    ).rejects.toThrow(`Invalid script "test" in ${packageJsonPath}`);
+  });
+
+  it("validates template scripts before reading managed files", async (): Promise<void> => {
+    const tempDir = await mkdtemp(path.join(os.tmpdir(), "strong-mode-detect-"));
+    const templateDir = path.join(tempDir, "template");
+    await mkdir(templateDir);
+    const packageJsonPath = path.join(templateDir, "package.json");
+    await writeFile(packageJsonPath, '{"scripts":{"lint":false}}');
+
+    await expect(detectApplyInput(tempDir, templateDir)).rejects.toThrow(
+      `Invalid script "lint" in ${packageJsonPath}`,
+    );
+  });
+
   it("does not modify an existing project during dry-run", async (): Promise<void> => {
     const tempDir = await createExistingProject();
 

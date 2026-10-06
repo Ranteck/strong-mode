@@ -246,7 +246,7 @@ const applyDependentFiles = async (
   for (const managedFile of dependents) {
     if (VITEST_TEST_FILES.has(managedFile.relativePath) && !scriptRunsVitest(scripts)) {
       log.info(
-        `Skipping ${managedFile.relativePath}: the project's "test" script (${scripts?.test ?? "none"}) does not run Vitest.`,
+        `Skipping ${managedFile.relativePath}: the project's "test" script could not be confirmed to run only Vitest. You can add the file if it does.`,
       );
       results.skippedFiles.push(managedFile.relativePath);
       continue;

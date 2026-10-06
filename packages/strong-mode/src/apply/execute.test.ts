@@ -2,6 +2,7 @@ import { mkdtemp, mkdir, readdir, readFile, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { log } from "@clack/prompts";
 import type { ApplyPlan, ManagedFile } from "./types.js";
 
 const { runCommandMock, runCommandCaptureMock, runPostApplyChecksMock } = vi.hoisted(
@@ -292,6 +293,31 @@ describe("executeApplyPlan dependent files", (): void => {
       expect(await envTestExists(tempDir)).toBe(true);
     },
   );
+
+  it("explains an unconfirmed runner without logging the script body", async (): Promise<void> => {
+    const tempDir = await createProject();
+    const testScript = "env PRIVATE_TOKEN=private-value vitest run";
+    const info = vi.spyOn(log, "info").mockImplementation((): void => undefined);
+    try {
+      const result = await run(
+        tempDir,
+        { filesToCreate: [envFile(false), envTestFile], conflictingFiles: [] },
+        { yes: true, force: false, scripts: { test: testScript } },
+      );
+
+      expect(result.skippedFiles).toContain("tests/env.test.ts");
+      expect(await envTestExists(tempDir)).toBe(false);
+      const messages = info.mock.calls.flat().join("\n");
+      expect(messages).toContain(
+        '"test" script could not be confirmed to run only Vitest',
+      );
+      expect(messages).toContain("add the file if it does");
+      expect(messages).not.toContain(testScript);
+      expect(messages).not.toContain("private-value");
+    } finally {
+      info.mockRestore();
+    }
+  });
 
   it("writes tests/env.test.ts when src/env.ts is created", async (): Promise<void> => {
     const tempDir = await createProject();
