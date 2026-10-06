@@ -8,6 +8,7 @@ describe("scriptRunsVitest", (): void => {
     "pnpm exec vitest",
     "yarn vitest",
     "yarn vitest run --coverage",
+    "yarn vitest run",
     "yarn run vitest",
     "bun run vitest",
     "NODE_ENV=test vitest",
@@ -15,6 +16,9 @@ describe("scriptRunsVitest", (): void => {
     "dotenv -e .env.test -- vitest run",
     "env TZ=UTC vitest run",
     "pnpm --filter app exec vitest",
+    "pnpm --filter app exec npm exec -- vitest",
+    "pnpm -r exec env CI=1 vitest",
+    "yarn workspace app exec vitest",
     "npx vitest@3 run",
     "./node_modules/.bin/vitest run",
     "NODE_ENV=test node_modules/.bin/vitest",
@@ -66,6 +70,9 @@ describe("scriptRunsVitest", (): void => {
     "pnpm --dir ./ run test:unit",
     "yarn --cwd ./ run test:unit",
     "bun --cwd . run test:unit",
+    "npm run test:unit -- --workspace api",
+    "pnpm run test:unit -- --recursive",
+    "bun run test:unit -- --workspaces",
   ])("follows delegation to another script (%s)", (test: string): void => {
     expect(scriptRunsVitest({ test, "test:unit": "vitest run" })).toBe(true);
   });
@@ -89,6 +96,30 @@ describe("scriptRunsVitest", (): void => {
 
   it("follows npm test from another script", (): void => {
     expect(scriptRunsVitest({ ci: "npm test", test: "vitest run" }, "ci")).toBe(true);
+  });
+
+  it("follows npm start from the test script", (): void => {
+    expect(scriptRunsVitest({ test: "npm start", start: "vitest" })).toBe(true);
+  });
+
+  it("follows Yarn's script shorthand", (): void => {
+    expect(scriptRunsVitest({ test: "yarn unit", unit: "vitest run" })).toBe(true);
+  });
+
+  it.each(["test", "t", "tst", "start", "stop", "restart"])(
+    "follows npm's script-running command %s",
+    (command: string): void => {
+      const name = command === "t" || command === "tst" ? "test" : command;
+      expect(
+        scriptRunsVitest({ ci: `npm ${command}`, [name]: "vitest run" }, "ci"),
+      ).toBe(true);
+    },
+  );
+
+  it("resolves npm test aliases rather than similarly named scripts", (): void => {
+    expect(scriptRunsVitest({ ci: "npm t", t: "vitest", test: "jest" }, "ci")).toBe(
+      false,
+    );
   });
 
   it.each([
@@ -128,6 +159,23 @@ describe("scriptRunsVitest", (): void => {
     "bun --filter app run unit",
     "bun -F app run unit",
     "bun --cwd=app run unit",
+    "npm run unit --workspace api",
+    "npm run unit --workspace=api",
+    "npm --workspaces run unit",
+    "npm run unit -ws",
+    "npm run unit --ws",
+    "pnpm -r run unit",
+    "pnpm --recursive run unit",
+    "pnpm run unit --filter api",
+    "yarn workspaces run unit",
+    "yarn workspaces foreach run unit",
+    "bun --workspaces run unit",
+    "bun run unit --workspaces",
+    "pnpm --filter api exec npm run unit",
+    "pnpm --filter api exec -- npm run unit",
+    "npm exec -w api -- yarn unit",
+    "pnpm -r exec cross-env CI=1 npm run unit",
+    "pnpm --filter api exec yarn --cwd . run unit",
   ])("does not resolve another package's script locally (%s)", (test: string): void => {
     expect(scriptRunsVitest({ test, unit: "vitest run" })).toBe(false);
   });
@@ -151,8 +199,56 @@ describe("scriptRunsVitest", (): void => {
   });
 
   it.each([
+    ["npm ci", "ci"],
+    ["npm unit", "unit"],
+    ["pnpm install", "install"],
+    ["pnpm i", "i"],
+    ["pnpm add", "add"],
+    ["pnpm update", "update"],
+    ["pnpm access", "access"],
+    ["pnpm shim", "shim"],
+    ["pnpm pm", "pm"],
+    ["pnpm prefix", "prefix"],
+    ["pnpm info", "info"],
+    ["pnpm show", "show"],
+    ["pnpm v", "v"],
+    ["pnpm stars", "stars"],
+    ["pnpm unstar", "unstar"],
+    ["pnpm edit", "edit"],
+    ["pnpm issues", "issues"],
+    ["pnpm profile", "profile"],
+    ["pnpm token", "token"],
+    ["pnpm xmas", "xmas"],
+    ["yarn check --integrity", "check"],
+    ["yarn install", "install"],
+    ["yarn constraints", "constraints"],
+    ["yarn npm info vitest", "npm"],
+    ["bun test", "test"],
+    ["bun build", "build"],
+    ["bun install", "install"],
+    ["bun rm", "rm"],
+  ])(
+    "does not resolve a built-in or unsupported command as a script (%s)",
+    (command: string, name: string): void => {
+      expect(
+        scriptRunsVitest({ wrapper: command, [name]: "vitest run" }, "wrapper"),
+      ).toBe(false);
+    },
+  );
+
+  it.each(["pnpm", "yarn", "bun"])(
+    "allows explicit run to select a script with a built-in name (%s)",
+    (manager: string): void => {
+      expect(
+        scriptRunsVitest({ test: `${manager} run install`, install: "vitest run" }),
+      ).toBe(true);
+    },
+  );
+
+  it.each([
     ["another runner", { test: "jest" }],
     ["a dotenv separator after the program", { test: "dotenv jest -- vitest" }],
+    ["a dotenv positional assignment", { test: "dotenv CI=1 vitest" }],
     [
       "a runner argument that resembles delegation",
       { test: "yarn jest run vitest", vitest: "vitest run" },
