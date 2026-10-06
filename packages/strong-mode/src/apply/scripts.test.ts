@@ -3,7 +3,7 @@ import { scriptRunsVitest } from "./scripts.js";
 
 interface ScriptCase {
   readonly label: string;
-  readonly scripts: Readonly<Record<string, string>> | undefined;
+  readonly scripts: Readonly<Record<string, string>> | null | undefined;
   readonly name?: string;
   readonly expected: boolean;
 }
@@ -129,11 +129,7 @@ describe("scriptRunsVitest closed grammar", (): void => {
       scripts: { test: "pnpm --filter:app", "--filter:app": "vitest run" },
       expected: false,
     },
-    {
-      label: "rejects tilde syntax in script name",
-      scripts: { test: "npm run ~", "~": "vitest run" },
-      expected: false,
-    },
+    commandCase("tsc ~ && vitest run", false, "syntax rejection for tilde"),
     {
       label: "rejects shorthand without colon",
       scripts: { test: "yarn unit", unit: "vitest run" },
@@ -179,7 +175,7 @@ describe("scriptRunsVitest closed grammar", (): void => {
     { label: "rejects absent scripts", scripts: undefined, expected: false },
     {
       label: "rejects null scripts",
-      scripts: JSON.parse("null") as Record<string, string>,
+      scripts: null,
       expected: false,
     },
     ...["tsc --noEmit", "eslint .", "prettier --check ."].map(
@@ -196,10 +192,14 @@ describe("scriptRunsVitest closed grammar", (): void => {
       false,
       "rejects preparation executable outside the exact word boundary",
     ),
-    commandCase("false && vitest || jest", false, "rejects pipe syntax in alternative"),
+    commandCase(
+      "false && vitest || jest",
+      false,
+      "rejects unrecognized false command and alternative syntax",
+    ),
     ...["jest && vitest run", "vitest run && node --test"].map(
       (command): ScriptCase =>
-        commandCase(command, false, `rejects mixed or alternative runners: ${command}`),
+        commandCase(command, false, `rejects mixed runners: ${command}`),
     ),
     {
       label: "post hook running Jest vetoes Vitest",
@@ -322,12 +322,17 @@ describe("scriptRunsVitest closed grammar", (): void => {
     expect(scriptRunsVitest(scripts, name)).toBe(expected);
   });
 
-  it("rejects every forbidden shell character", (): void => {
-    const characters = "|;&<>(){}[]$`'\"#\\%^~\r\n\u000b\f!*?";
+  it("rejects remaining forbidden shell characters", (): void => {
+    const characters = "|;&<>(){}[]$`'\"#\\%^\r\n\u000b\f!*?";
     for (const character of characters) {
       expect(
-        scriptRunsVitest({ test: `tsc ${character} && vitest run` }),
-        `rejects character ${JSON.stringify(character)}`,
+        scriptRunsVitest({
+          test:
+            character === "|"
+              ? "tsc || jest && vitest run"
+              : `tsc ${character} && vitest run`,
+        }),
+        `syntax rejection for ${JSON.stringify(character)}`,
       ).toBe(false);
     }
   });

@@ -247,16 +247,15 @@ const applyDependentFiles = async (
   const otherTestRunner = OTHER_TEST_RUNNERS.find((runner): boolean =>
     isDeclared(packageJson ?? {}, runner),
   );
+  const skipReason =
+    otherTestRunner !== undefined
+      ? `declared test runner "${otherTestRunner}" may also collect the file. You can add the file if that runner does not look in tests/.`
+      : scriptRunsVitest(packageJson?.scripts)
+        ? undefined
+        : 'the project\'s "test" script could not be confirmed to run only Vitest. You can add the file if it does.';
   for (const managedFile of dependents) {
-    if (
-      VITEST_TEST_FILES.has(managedFile.relativePath) &&
-      (otherTestRunner !== undefined || !scriptRunsVitest(packageJson?.scripts))
-    ) {
-      log.info(
-        otherTestRunner === undefined
-          ? `Skipping ${managedFile.relativePath}: the project's "test" script could not be confirmed to run only Vitest. You can add the file if it does.`
-          : `Skipping ${managedFile.relativePath}: declared test runner "${otherTestRunner}" would also collect the file.`,
-      );
+    if (VITEST_TEST_FILES.has(managedFile.relativePath) && skipReason !== undefined) {
+      log.info(`Skipping ${managedFile.relativePath}: ${skipReason}`);
       results.skippedFiles.push(managedFile.relativePath);
       continue;
     }

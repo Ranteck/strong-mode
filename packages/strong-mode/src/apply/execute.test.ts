@@ -3,7 +3,6 @@ import os from "node:os";
 import path from "node:path";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { log } from "@clack/prompts";
-import { OTHER_TEST_RUNNERS } from "./constants.js";
 import type { ApplyPlan, ManagedFile } from "./types.js";
 
 const { runCommandMock, runCommandCaptureMock, runPostApplyChecksMock } = vi.hoisted(
@@ -329,11 +328,12 @@ describe("executeApplyPlan dependent files", (): void => {
   });
 
   it.each(
-    OTHER_TEST_RUNNERS.flatMap((runner) =>
-      (["dependencies", "devDependencies"] as const).map((section) => ({
-        runner,
-        section,
-      })),
+    ["jest", "@playwright/test", "playwright", "mocha", "ava", "jasmine"].flatMap(
+      (runner) =>
+        (["dependencies", "devDependencies"] as const).map((section) => ({
+          runner,
+          section,
+        })),
     ),
   )(
     "vetoes the Vitest env test for $runner in $section",
@@ -357,9 +357,8 @@ describe("executeApplyPlan dependent files", (): void => {
         expect(await envTestExists(tempDir)).toBe(false);
         const messages = info.mock.calls.flat().join("\n");
         expect(messages).toContain(
-          `Skipping tests/env.test.ts: declared test runner "${runner}" would also collect the file.`,
+          `Skipping tests/env.test.ts: declared test runner "${runner}" may also collect the file. You can add the file if that runner does not look in tests/.`,
         );
-        expect(messages).not.toContain("You can add the file");
       } finally {
         info.mockRestore();
       }

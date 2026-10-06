@@ -23,10 +23,10 @@ const delegatedScript = (command: string): string | undefined =>
 // A false negative only skips the sample; unknown commands must not expose a
 // Vitest-only test to another runner. Keep this grammar deliberately closed.
 export const scriptRunsVitest = (
-  scripts: Readonly<Record<string, string>> | undefined,
+  scripts: Readonly<Record<string, string>> | null | undefined,
   name = "test",
 ): boolean => {
-  if (typeof scripts !== "object" || (scripts as unknown) === null) {
+  if (typeof scripts !== "object" || scripts === null) {
     return false;
   }
   const memo = new Map<string, ScriptResult>();
