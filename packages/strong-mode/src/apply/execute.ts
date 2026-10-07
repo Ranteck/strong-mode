@@ -1,15 +1,24 @@
-import { createRequire } from "node:module";
 import path from "node:path";
 import { log } from "@clack/prompts";
 import { runPostApplyChecks } from "./checks.js";
-import { LOCKSTEP_DEV_DEPENDENCIES } from "./constants.js";
+import {
+  LOCKSTEP_DEV_DEPENDENCIES,
+  MANAGED_FILE_DEPENDENCIES,
+  OTHER_TEST_RUNNERS,
+  REPLACED_DEV_DEPENDENCIES,
+  VITEST_TEST_FILES,
+} from "./constants.js";
+import { readInstalledVersion } from "./installed.js";
 import { backupFile, fileExists, readTextIfExists, writeTextFile } from "./io.js";
 import { isMergeableManagedFile, mergeManagedFileContent } from "./merge.js";
+import { dropReplacedDependencies, isDeclared } from "./patchers.js";
+import { scriptRunsVitest } from "./scripts.js";
 import { type ConflictResolution, promptFileConflictResolution } from "./prompts.js";
 import type {
   AlignedLockstep,
   ApplyPlan,
   ApplySummary,
+  ManagedFile,
   MismatchedLockstep,
   PackageJsonLike,
 } from "./types.js";
@@ -64,14 +73,15 @@ type PackageJsonOutcome = "updated" | "unchanged" | "skipped";
 
 const applyPackageJson = async (
   plan: ApplyPlan,
+  next: PackageJsonLike,
   options: ExecuteApplyPlanOptions,
 ): Promise<PackageJsonOutcome> => {
-  if (!plan.packageJsonPlan.summary.changed) {
+  if (!plan.packageJsonPlan.summary.changed && next === plan.packageJsonPlan.next) {
     return "unchanged";
   }
 
   const packageJsonPath = path.join(options.targetDir, "package.json");
-  const nextSource = `${JSON.stringify(plan.packageJsonPlan.next, null, 2)}\n`;
+  const nextSource = `${JSON.stringify(next, null, 2)}\n`;
   const currentSource = await readTextIfExists(packageJsonPath);
 
   if (currentSource === nextSource) {
@@ -110,33 +120,167 @@ const applyPackageJson = async (
   return "updated";
 };
 
-// The version installed for this package, resolved the way Node resolves it from
-// the project (hoisted installs, pnpm symlinks, aliases).
-const resolveWithNode = async (
-  targetDir: string,
-  packageName: string,
-): Promise<string | undefined> => {
-  let manifestPath: string;
-  try {
-    manifestPath = createRequire(path.join(targetDir, "package.json")).resolve(
-      `${packageName}/package.json`,
+interface FileResults {
+  readonly createdFiles: string[];
+  readonly conflictedFiles: string[];
+  readonly mergedFiles: string[];
+  readonly overwrittenFiles: string[];
+  readonly skippedFiles: string[];
+  readonly deferredFiles: string[];
+  // Files whose final content is exactly the template's (created, overwritten or
+  // already identical). Dependent files are only written for these.
+  readonly templateFiles: Set<string>;
+}
+
+const applyNewFile = async (
+  managedFile: ManagedFile,
+  options: ExecuteApplyPlanOptions,
+  results: FileResults,
+): Promise<void> => {
+  await writeManagedFile(
+    options.targetDir,
+    managedFile.relativePath,
+    managedFile.content,
+    options.dryRun,
+  );
+  results.createdFiles.push(managedFile.relativePath);
+  results.templateFiles.add(managedFile.relativePath);
+};
+
+const applyConflictingFile = async (
+  managedFile: ManagedFile,
+  options: ExecuteApplyPlanOptions,
+  results: FileResults,
+): Promise<void> => {
+  const targetPath = path.join(options.targetDir, managedFile.relativePath);
+  const existing = await readTextIfExists(targetPath);
+  if (existing === undefined) {
+    await applyNewFile(managedFile, options, results);
+    return;
+  }
+
+  if (existing === managedFile.content) {
+    results.skippedFiles.push(managedFile.relativePath);
+    results.templateFiles.add(managedFile.relativePath);
+    return;
+  }
+
+  const decision = await promptFileConflictResolution(
+    managedFile.relativePath,
+    existing,
+    managedFile.content,
+    options.yes,
+    options.force,
+    isMergeableManagedFile(managedFile.relativePath)
+      ? "mergeable-file"
+      : "managed-file",
+  );
+
+  if (decision === "skip") {
+    results.skippedFiles.push(managedFile.relativePath);
+    return;
+  }
+
+  const nextContent =
+    decision === "merge"
+      ? mergeManagedFileContent(managedFile.relativePath, existing, managedFile.content)
+      : decision === "conflict"
+        ? buildConflictFileContent(existing, managedFile.content)
+        : managedFile.content;
+
+  if (decision === "merge" && nextContent === undefined) {
+    if (options.backup && !options.dryRun) {
+      await backupFile(targetPath);
+    }
+
+    await writeManagedFile(
+      options.targetDir,
+      managedFile.relativePath,
+      buildConflictFileContent(existing, managedFile.content),
+      options.dryRun,
     );
-  } catch {
-    return undefined;
+    results.conflictedFiles.push(managedFile.relativePath);
+    return;
   }
 
-  const source = await readTextIfExists(manifestPath);
-  if (source === undefined) {
-    return undefined;
+  if (nextContent === existing) {
+    results.skippedFiles.push(managedFile.relativePath);
+    return;
   }
 
-  try {
-    const manifest = JSON.parse(source) as { version?: unknown };
-    return typeof manifest.version === "string" && manifest.version.length > 0
-      ? manifest.version
-      : undefined;
-  } catch {
-    return undefined;
+  if (nextContent === undefined) {
+    throw new Error(
+      `Merge strategy did not produce content for ${managedFile.relativePath}.`,
+    );
+  }
+
+  if (options.backup && !options.dryRun) {
+    await backupFile(targetPath); // throws with context if backup fails — overwrite will not proceed
+  }
+
+  await writeManagedFile(
+    options.targetDir,
+    managedFile.relativePath,
+    nextContent,
+    options.dryRun,
+  );
+
+  if (decision === "conflict") {
+    results.conflictedFiles.push(managedFile.relativePath);
+  } else if (decision === "merge") {
+    results.mergedFiles.push(managedFile.relativePath);
+  } else {
+    results.overwrittenFiles.push(managedFile.relativePath);
+    results.templateFiles.add(managedFile.relativePath);
+  }
+};
+
+const isDependentFile = (managedFile: ManagedFile): boolean =>
+  MANAGED_FILE_DEPENDENCIES[managedFile.relativePath] !== undefined;
+
+const applyDependentFiles = async (
+  dependents: readonly ManagedFile[],
+  packageJson: PackageJsonLike | undefined,
+  options: ExecuteApplyPlanOptions,
+  results: FileResults,
+): Promise<void> => {
+  const otherTestRunners = OTHER_TEST_RUNNERS.filter((runner): boolean =>
+    isDeclared(packageJson ?? {}, runner),
+  );
+  const skipReasons = otherTestRunners.map(
+    (runner): string => `declared test runner "${runner}" may also collect the file`,
+  );
+  if (!scriptRunsVitest(packageJson?.scripts)) {
+    skipReasons.unshift(
+      'the project\'s "test" script could not be confirmed to run only Vitest',
+    );
+  }
+
+  for (const managedFile of dependents) {
+    const dependency = MANAGED_FILE_DEPENDENCIES[managedFile.relativePath];
+    if (dependency !== undefined && results.conflictedFiles.includes(dependency)) {
+      log.warn(
+        `Not adding ${managedFile.relativePath} yet: resolve the conflict in ${dependency} and re-run strong-mode.`,
+      );
+      results.deferredFiles.push(managedFile.relativePath);
+      continue;
+    }
+
+    if (dependency !== undefined && !results.templateFiles.has(dependency)) {
+      log.info(
+        `Skipping ${managedFile.relativePath}: ${dependency} does not use the strong-mode template.`,
+      );
+      results.skippedFiles.push(managedFile.relativePath);
+      continue;
+    }
+
+    if (VITEST_TEST_FILES.has(managedFile.relativePath) && skipReasons.length > 0) {
+      log.info(`Skipping ${managedFile.relativePath}: ${skipReasons.join("; ")}.`);
+      results.skippedFiles.push(managedFile.relativePath);
+      continue;
+    }
+
+    await applyConflictingFile(managedFile, options, results);
   }
 };
 
@@ -160,7 +304,7 @@ const resolveInstalledVersion = async (
   packageName: string,
   packageManager: ExecuteApplyPlanOptions["packageManager"],
 ): Promise<string | undefined> => {
-  const viaNode = await resolveWithNode(targetDir, packageName);
+  const viaNode = await readInstalledVersion(targetDir, packageName);
   if (viaNode !== undefined || packageManager !== "yarn") {
     return viaNode;
   }
@@ -207,6 +351,90 @@ const detectAddContext = async (
       (typeof packageManagerField === "string" &&
         /^yarn@(?:[2-9]|[1-9]\d)/u.test(packageManagerField)),
   };
+};
+
+// ESLint configs other than the managed eslint.config.mjs. ESLint loads
+// eslint.config.js first; the others may still be selected with --config.
+const OTHER_ESLINT_CONFIGS = [
+  "eslint.config.js",
+  "eslint.config.cjs",
+  "eslint.config.ts",
+  "eslint.config.mts",
+  "eslint.config.cts",
+  ".eslintrc",
+  ".eslintrc.js",
+  ".eslintrc.cjs",
+  ".eslintrc.json",
+  ".eslintrc.yaml",
+  ".eslintrc.yml",
+] as const;
+const RUNS_ESLINT = /\beslint\b/u;
+const SELECTS_ESLINT_CONFIG = /(?:^|\s)(?:-c|--config)(?:\s|=)/u;
+
+const findOtherEslintConfigs = async (targetDir: string): Promise<string[]> => {
+  const exists = await Promise.all(
+    OTHER_ESLINT_CONFIGS.map((file) => fileExists(path.join(targetDir, file))),
+  );
+  return OTHER_ESLINT_CONFIGS.filter((_file, index) => exists[index] === true);
+};
+
+const warnIfEslintConfigShadowed = async (targetDir: string): Promise<void> => {
+  if (await fileExists(path.join(targetDir, "eslint.config.js"))) {
+    log.warn(
+      "eslint.config.js takes precedence over strong-mode's eslint.config.mjs, so ESLint keeps using it and the strong-mode rules do not apply. Merge them into eslint.config.js, or remove it.",
+    );
+  }
+};
+
+// Why a replaced package may still be loaded by something strong-mode does not
+// manage, if anything does.
+const replacedPackageConsumer = async (
+  next: PackageJsonLike,
+  targetDir: string,
+): Promise<string | undefined> => {
+  if ((await detectAddContext(targetDir)).workspaceRoot) {
+    return "other workspace packages may still use it";
+  }
+  const otherConfigs = await findOtherEslintConfigs(targetDir);
+  if (otherConfigs.length > 0) {
+    return `${otherConfigs.join(", ")} may still load it`;
+  }
+  // Any script, not only `lint`: scripts delegate to each other, and keeping an
+  // extra package is cheaper than breaking the config that still loads it.
+  const selecting = Object.entries(next.scripts ?? {}).find(
+    ([, script]) => RUNS_ESLINT.test(script) && SELECTS_ESLINT_CONFIG.test(script),
+  );
+  return selecting === undefined
+    ? undefined
+    : `the "${selecting[0]}" script selects another ESLint config (${selecting[1]})`;
+};
+
+// Replaced packages can only go once their config file is known to be the
+// template's, and nothing else strong-mode does not manage may still load them.
+const withoutReplacedDependencies = async (
+  next: PackageJsonLike,
+  results: FileResults,
+  options: ExecuteApplyPlanOptions,
+): Promise<PackageJsonLike> => {
+  const replaced = dropReplacedDependencies(next, results.templateFiles);
+  if (replaced.dropped.length === 0) {
+    return next;
+  }
+
+  const consumer = await replacedPackageConsumer(next, options.targetDir);
+  if (consumer !== undefined) {
+    for (const name of replaced.dropped) {
+      log.warn(`Keeping ${name}: ${consumer}. Remove it once nothing uses it.`);
+    }
+    return next;
+  }
+
+  for (const name of replaced.dropped) {
+    log.info(
+      `Removing ${name}: replaced by ${REPLACED_DEV_DEPENDENCIES[name]?.replacement ?? "a newer package"}.`,
+    );
+  }
+  return replaced.next;
 };
 
 interface LockstepState {
@@ -321,116 +549,49 @@ export const executeApplyPlan = async (
   plan: ApplyPlan,
   options: ExecuteApplyPlanOptions,
 ): Promise<ApplySummary> => {
-  const createdFiles: string[] = [];
-  const conflictedFiles: string[] = [];
-  const mergedFiles: string[] = [];
-  const overwrittenFiles: string[] = [];
-  const skippedFiles: string[] = [];
+  const results: FileResults = {
+    createdFiles: [],
+    conflictedFiles: [],
+    mergedFiles: [],
+    overwrittenFiles: [],
+    skippedFiles: [],
+    deferredFiles: [],
+    templateFiles: new Set<string>(),
+  };
 
-  for (const managedFile of plan.filesToCreate) {
-    await writeManagedFile(
-      options.targetDir,
-      managedFile.relativePath,
-      managedFile.content,
-      options.dryRun,
-    );
-    createdFiles.push(managedFile.relativePath);
+  await warnIfEslintConfigShadowed(options.targetDir);
+
+  for (const managedFile of plan.filesToCreate.filter(
+    (file) => !isDependentFile(file),
+  )) {
+    await applyNewFile(managedFile, options, results);
   }
 
-  for (const managedFile of plan.conflictingFiles) {
-    const targetPath = path.join(options.targetDir, managedFile.relativePath);
-    const existing = await readTextIfExists(targetPath);
-    if (existing === undefined) {
-      await writeManagedFile(
-        options.targetDir,
-        managedFile.relativePath,
-        managedFile.content,
-        options.dryRun,
-      );
-      createdFiles.push(managedFile.relativePath);
-      continue;
-    }
-
-    if (existing === managedFile.content) {
-      skippedFiles.push(managedFile.relativePath);
-      continue;
-    }
-
-    const decision = await promptFileConflictResolution(
-      managedFile.relativePath,
-      existing,
-      managedFile.content,
-      options.yes,
-      options.force,
-      isMergeableManagedFile(managedFile.relativePath)
-        ? "mergeable-file"
-        : "managed-file",
-    );
-
-    if (decision === "skip") {
-      skippedFiles.push(managedFile.relativePath);
-      continue;
-    }
-
-    const nextContent =
-      decision === "merge"
-        ? mergeManagedFileContent(
-            managedFile.relativePath,
-            existing,
-            managedFile.content,
-          )
-        : decision === "conflict"
-          ? buildConflictFileContent(existing, managedFile.content)
-          : managedFile.content;
-
-    if (decision === "merge" && nextContent === undefined) {
-      if (options.backup && !options.dryRun) {
-        await backupFile(targetPath);
-      }
-
-      await writeManagedFile(
-        options.targetDir,
-        managedFile.relativePath,
-        buildConflictFileContent(existing, managedFile.content),
-        options.dryRun,
-      );
-      conflictedFiles.push(managedFile.relativePath);
-      continue;
-    }
-
-    if (nextContent === existing) {
-      skippedFiles.push(managedFile.relativePath);
-      continue;
-    }
-
-    if (nextContent === undefined) {
-      throw new Error(
-        `Merge strategy did not produce content for ${managedFile.relativePath}.`,
-      );
-    }
-
-    if (options.backup && !options.dryRun) {
-      await backupFile(targetPath); // throws with context if backup fails — overwrite will not proceed
-    }
-
-    await writeManagedFile(
-      options.targetDir,
-      managedFile.relativePath,
-      nextContent,
-      options.dryRun,
-    );
-
-    if (decision === "conflict") {
-      conflictedFiles.push(managedFile.relativePath);
-    } else if (decision === "merge") {
-      mergedFiles.push(managedFile.relativePath);
-    } else {
-      overwrittenFiles.push(managedFile.relativePath);
-    }
+  for (const managedFile of plan.conflictingFiles.filter(
+    (file) => !isDependentFile(file),
+  )) {
+    await applyConflictingFile(managedFile, options, results);
   }
 
-  const packageJsonOutcome = await applyPackageJson(plan, options);
+  const nextPackageJson = await withoutReplacedDependencies(
+    plan.packageJsonPlan.next,
+    results,
+    options,
+  );
+  const packageJsonOutcome = await applyPackageJson(plan, nextPackageJson, options);
   let packageJsonUpdated = packageJsonOutcome === "updated";
+
+  // Dependent files go last so the files they depend on are already resolved, and
+  // follow the package.json that is kept: the current one when its update was skipped.
+  await applyDependentFiles(
+    [...plan.filesToCreate, ...plan.conflictingFiles].filter(isDependentFile),
+    packageJsonOutcome === "skipped" ? plan.packageJsonPlan.current : nextPackageJson,
+    options,
+    results,
+  );
+
+  const { createdFiles, conflictedFiles, mergedFiles, overwrittenFiles, skippedFiles } =
+    results;
 
   let installRan = false;
   if (options.shouldInstall && conflictedFiles.length === 0 && !options.dryRun) {
@@ -465,8 +626,8 @@ export const executeApplyPlan = async (
   let checksRan: readonly string[] = [];
   if (options.shouldRunChecks && conflictedFiles.length === 0 && !options.dryRun) {
     const packageJsonForChecks = packageJsonUpdated
-      ? plan.packageJsonPlan.next
-      : (plan.packageJsonPlan.current ?? plan.packageJsonPlan.next);
+      ? nextPackageJson
+      : (plan.packageJsonPlan.current ?? nextPackageJson);
     try {
       // runCommand is synchronous (spawnSync) — if refactored to async, add await here
       checksRan = runPostApplyChecks(
@@ -494,6 +655,7 @@ export const executeApplyPlan = async (
     alignedLockstep: lockstep.aligned,
     deferredLockstep: lockstep.deferred,
     mismatchedLockstep: lockstep.mismatched,
+    deferredFiles: results.deferredFiles,
     packageJsonUpdated,
     installRan,
     checksRan,

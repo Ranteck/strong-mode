@@ -130,6 +130,143 @@ describe("runApplyCommand", (): void => {
     );
   });
 
+  it("warns when a package.json without type is switched to ESM", async (): Promise<void> => {
+    const tempDir = await createExistingProject();
+    const packageJsonPath = path.join(tempDir, "package.json");
+    const parsed = JSON.parse(await readFile(packageJsonPath, "utf8")) as Record<
+      string,
+      unknown
+    >;
+    const withoutType = Object.fromEntries(
+      Object.entries(parsed).filter(([key]) => key !== "type"),
+    );
+    await writeFile(packageJsonPath, `${JSON.stringify(withoutType, null, 2)}\n`);
+
+    const lines = await runApplyCommand({
+      command: "apply",
+      cwd: tempDir,
+      packageManager: "npm",
+      install: false,
+      runChecks: false,
+      yes: true,
+      dryRun: true,
+      backup: false,
+      force: false,
+    });
+
+    expect(lines.map(stripAnsi).join("\n")).toContain('package.json had no "type"');
+  });
+
+  it("rejects a CommonJS project before writing any file", async (): Promise<void> => {
+    const tempDir = await createExistingProject();
+    const packageJsonPath = path.join(tempDir, "package.json");
+    const packageJson = JSON.parse(await readFile(packageJsonPath, "utf8")) as Record<
+      string,
+      unknown
+    >;
+    await writeFile(
+      packageJsonPath,
+      `${JSON.stringify({ ...packageJson, type: "commonjs" }, null, 2)}\n`,
+    );
+    const beforeFiles = await readdir(tempDir);
+    const beforePackageJson = await readFile(packageJsonPath, "utf8");
+
+    await expect(
+      runApplyCommand({
+        command: "apply",
+        cwd: tempDir,
+        packageManager: "npm",
+        install: false,
+        runChecks: false,
+        yes: true,
+        dryRun: false,
+        backup: false,
+        force: false,
+      }),
+    ).rejects.toThrow('"type": "commonjs"');
+    expect(await readdir(tempDir)).toEqual(beforeFiles);
+    expect(await readFile(packageJsonPath, "utf8")).toBe(beforePackageJson);
+  });
+
+  it("rejects a Vite the template's Vitest cannot use before writing any file", async (): Promise<void> => {
+    const tempDir = await createExistingProject();
+    const packageJsonPath = path.join(tempDir, "package.json");
+    const packageJson = JSON.parse(await readFile(packageJsonPath, "utf8")) as {
+      devDependencies?: Record<string, string>;
+    };
+    await writeFile(
+      packageJsonPath,
+      `${JSON.stringify(
+        {
+          ...packageJson,
+          devDependencies: { ...packageJson.devDependencies, vite: "~6.3.0" },
+        },
+        null,
+        2,
+      )}\n`,
+    );
+    const beforeFiles = await readdir(tempDir);
+    const beforePackageJson = await readFile(packageJsonPath, "utf8");
+
+    await expect(
+      runApplyCommand({
+        command: "apply",
+        cwd: tempDir,
+        packageManager: "npm",
+        install: false,
+        runChecks: false,
+        yes: true,
+        dryRun: false,
+        backup: false,
+        force: false,
+      }),
+    ).rejects.toThrow('declares vite "~6.3.0"');
+    expect(await readdir(tempDir)).toEqual(beforeFiles);
+    expect(await readFile(packageJsonPath, "utf8")).toBe(beforePackageJson);
+  });
+
+  it("rejects an installed Vite the template's Vitest cannot use before writing any file", async (): Promise<void> => {
+    const tempDir = await createExistingProject();
+    const packageJsonPath = path.join(tempDir, "package.json");
+    const packageJson = JSON.parse(await readFile(packageJsonPath, "utf8")) as {
+      devDependencies?: Record<string, string>;
+    };
+    await writeFile(
+      packageJsonPath,
+      `${JSON.stringify(
+        {
+          ...packageJson,
+          devDependencies: { ...packageJson.devDependencies, vite: "^5.0.0 || ^6.0.0" },
+        },
+        null,
+        2,
+      )}\n`,
+    );
+    await mkdir(path.join(tempDir, "node_modules/vite"), { recursive: true });
+    await writeFile(
+      path.join(tempDir, "node_modules/vite/package.json"),
+      JSON.stringify({ name: "vite", version: "5.4.14" }),
+    );
+    const beforeFiles = await readdir(tempDir);
+    const beforePackageJson = await readFile(packageJsonPath, "utf8");
+
+    await expect(
+      runApplyCommand({
+        command: "apply",
+        cwd: tempDir,
+        packageManager: "npm",
+        install: false,
+        runChecks: false,
+        yes: true,
+        dryRun: false,
+        backup: false,
+        force: false,
+      }),
+    ).rejects.toThrow("the installed vite is 5.4.14");
+    expect(await readdir(tempDir)).toEqual(beforeFiles);
+    expect(await readFile(packageJsonPath, "utf8")).toBe(beforePackageJson);
+  });
+
   it("merges package.json and tsconfig.json for an existing project", async (): Promise<void> => {
     const tempDir = await createExistingProject();
 
@@ -174,7 +311,7 @@ describe("runApplyCommand", (): void => {
     expect(packageJson.devDependencies.typescript).toBe("^5.9.3");
     expect(packageJson.devDependencies.eslint).toBeDefined();
     expect(packageJson.devDependencies.vitest).toBeDefined();
-    expect(packageJson.engines.node).toBe(">=22");
+    expect(packageJson.engines.node).toBe("^22.13.0 || ^24.0.0 || >=26.0.0");
 
     const parsedTsconfig = JSON.parse(tsconfig) as {
       compilerOptions?: Record<string, unknown>;

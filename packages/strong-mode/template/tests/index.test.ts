@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+
 import { parseIncomingPayload } from "../src/index.js";
 
 describe("parseIncomingPayload", (): void => {

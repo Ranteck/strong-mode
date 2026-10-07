@@ -2,7 +2,9 @@ import { mkdtemp, mkdir, readdir, readFile, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import type { ApplyPlan } from "./types.js";
+import { log } from "@clack/prompts";
+import * as prompts from "./prompts.js";
+import type { ApplyPlan, ManagedFile } from "./types.js";
 
 const { runCommandMock, runCommandCaptureMock, runPostApplyChecksMock } = vi.hoisted(
   () => ({
@@ -58,6 +60,7 @@ const createPlan = (targetDir: string): ApplyPlan => ({
       addedDevDependencies: [],
       updatedPrepareScript: false,
       postInstallLockstep: [],
+      setModuleType: false,
       changed: false,
     },
   },
@@ -109,6 +112,584 @@ describe("executeApplyPlan", (): void => {
     expect(eslintConfig).toContain(">>>>>>> strong-mode template");
     expect(runCommandMock).not.toHaveBeenCalled();
     expect(runPostApplyChecksMock).not.toHaveBeenCalled();
+  });
+});
+
+describe("executeApplyPlan dependent files", (): void => {
+  const TEMPLATE_ENV = "export const env = { NODE_ENV: 'test' };\n";
+  const PROJECT_ENV = "export const config = { port: 3000 };\n";
+
+  const envFile = (exists: boolean): ManagedFile => ({
+    relativePath: "src/env.ts",
+    sourceTemplatePath: "/template/src/env.ts",
+    content: TEMPLATE_ENV,
+    exists,
+  });
+
+  const envTestFile: ManagedFile = {
+    relativePath: "tests/env.test.ts",
+    sourceTemplatePath: "/template/tests/env.test.ts",
+    content: "// tests the template env.ts\n",
+    exists: false,
+  };
+
+  const createProject = async (envContent?: string): Promise<string> => {
+    const tempDir = await mkdtemp(path.join(os.tmpdir(), "strong-mode-execute-deps-"));
+    await writeFile(
+      path.join(tempDir, "package.json"),
+      '{\n  "name": "fixture-project",\n  "private": true\n}\n',
+    );
+    if (envContent !== undefined) {
+      await mkdir(path.join(tempDir, "src"), { recursive: true });
+      await writeFile(path.join(tempDir, "src/env.ts"), envContent);
+    }
+    return tempDir;
+  };
+
+  const run = async (
+    tempDir: string,
+    plan: Pick<ApplyPlan, "filesToCreate" | "conflictingFiles">,
+    flags: {
+      readonly yes: boolean;
+      readonly force: boolean;
+      readonly dryRun?: boolean;
+      readonly scripts?: Record<string, string>;
+      readonly dependencies?: Record<string, string>;
+      readonly devDependencies?: Record<string, string>;
+    },
+  ): ReturnType<typeof executeApplyPlan> => {
+    const base = createPlan(tempDir);
+    return executeApplyPlan(
+      {
+        ...base,
+        ...plan,
+        packageJsonPlan: {
+          ...base.packageJsonPlan,
+          next: {
+            ...base.packageJsonPlan.next,
+            scripts: flags.scripts ?? { test: "vitest run" },
+            ...(flags.dependencies === undefined
+              ? {}
+              : { dependencies: flags.dependencies }),
+            ...(flags.devDependencies === undefined
+              ? {}
+              : { devDependencies: flags.devDependencies }),
+          },
+        },
+      },
+      {
+        targetDir: tempDir,
+        packageManager: "npm",
+        yes: flags.yes,
+        force: flags.force,
+        dryRun: flags.dryRun ?? false,
+        backup: false,
+        shouldInstall: false,
+        shouldRunChecks: false,
+      },
+    );
+  };
+
+  const envTestExists = async (tempDir: string): Promise<boolean> =>
+    readFile(path.join(tempDir, "tests/env.test.ts"), "utf8").then(
+      (): boolean => true,
+      (): boolean => false,
+    );
+
+  it("defers tests/env.test.ts while src/env.ts is left in conflict", async (): Promise<void> => {
+    const tempDir = await createProject(PROJECT_ENV);
+
+    const result = await run(
+      tempDir,
+      { filesToCreate: [envTestFile], conflictingFiles: [envFile(true)] },
+      { yes: true, force: false },
+    );
+
+    expect(result.conflictedFiles).toEqual(["src/env.ts"]);
+    expect(result.deferredFiles).toEqual(["tests/env.test.ts"]);
+    expect(result.skippedFiles).not.toContain("tests/env.test.ts");
+    expect(result.createdFiles).not.toContain("tests/env.test.ts");
+    expect(await envTestExists(tempDir)).toBe(false);
+  });
+
+  it("treats the user's own tests/env.test.ts like any other managed file", async (): Promise<void> => {
+    const tempDir = await createProject();
+    await mkdir(path.join(tempDir, "tests"), { recursive: true });
+    await writeFile(
+      path.join(tempDir, "tests/env.test.ts"),
+      "// the user's own test\n",
+    );
+
+    const result = await run(
+      tempDir,
+      {
+        filesToCreate: [envFile(false)],
+        conflictingFiles: [{ ...envTestFile, exists: true }],
+      },
+      { yes: true, force: false },
+    );
+
+    expect(result.createdFiles).toEqual(["src/env.ts"]);
+    expect(result.conflictedFiles).toEqual(["tests/env.test.ts"]);
+    expect(await readFile(path.join(tempDir, "tests/env.test.ts"), "utf8")).toContain(
+      "<<<<<<< current project",
+    );
+  });
+
+  it("reports dependents the same way during a dry run without writing them", async (): Promise<void> => {
+    const created = await createProject();
+    const createdResult = await run(
+      created,
+      { filesToCreate: [envFile(false), envTestFile], conflictingFiles: [] },
+      { yes: true, force: false, dryRun: true },
+    );
+    const conflicted = await createProject(PROJECT_ENV);
+    const conflictedResult = await run(
+      conflicted,
+      { filesToCreate: [envTestFile], conflictingFiles: [envFile(true)] },
+      { yes: true, force: false, dryRun: true },
+    );
+
+    expect(createdResult.createdFiles).toEqual(["src/env.ts", "tests/env.test.ts"]);
+    expect(await envTestExists(created)).toBe(false);
+    expect(conflictedResult.deferredFiles).toEqual(["tests/env.test.ts"]);
+    expect(await envTestExists(conflicted)).toBe(false);
+  });
+
+  it("writes tests/env.test.ts when src/env.ts is overwritten with the template", async (): Promise<void> => {
+    const tempDir = await createProject(PROJECT_ENV);
+
+    const result = await run(
+      tempDir,
+      { filesToCreate: [envTestFile], conflictingFiles: [envFile(true)] },
+      { yes: true, force: true },
+    );
+
+    expect(result.overwrittenFiles).toEqual(["src/env.ts"]);
+    expect(result.createdFiles).toContain("tests/env.test.ts");
+    expect(await envTestExists(tempDir)).toBe(true);
+  });
+
+  it.each(["jest", "node --test tests/*.test.ts"])(
+    "skips tests/env.test.ts when the project's test script is %s, which would pick it up and fail",
+    async (testScript: string): Promise<void> => {
+      const tempDir = await createProject();
+
+      const result = await run(
+        tempDir,
+        { filesToCreate: [envFile(false), envTestFile], conflictingFiles: [] },
+        { yes: true, force: false, scripts: { test: testScript } },
+      );
+
+      expect(result.createdFiles).toEqual(["src/env.ts"]);
+      expect(result.skippedFiles).toContain("tests/env.test.ts");
+      expect(await envTestExists(tempDir)).toBe(false);
+    },
+  );
+
+  it.each(["npm run test:unit", "npm --silent run test:unit"])(
+    "writes tests/env.test.ts when the test script delegates to a Vitest script (%s)",
+    async (test: string): Promise<void> => {
+      const tempDir = await createProject();
+
+      const result = await run(
+        tempDir,
+        { filesToCreate: [envFile(false), envTestFile], conflictingFiles: [] },
+        { yes: true, force: false, scripts: { test, "test:unit": "vitest run" } },
+      );
+
+      expect(result.createdFiles).toEqual(["src/env.ts", "tests/env.test.ts"]);
+      expect(await envTestExists(tempDir)).toBe(true);
+    },
+  );
+
+  it("explains an unconfirmed runner without logging the script body", async (): Promise<void> => {
+    const tempDir = await createProject();
+    const testScript = "env PRIVATE_TOKEN=private-value vitest run";
+    const info = vi.spyOn(log, "info").mockImplementation((): void => undefined);
+    try {
+      const result = await run(
+        tempDir,
+        { filesToCreate: [envFile(false), envTestFile], conflictingFiles: [] },
+        { yes: true, force: false, scripts: { test: testScript } },
+      );
+
+      expect(result.skippedFiles).toContain("tests/env.test.ts");
+      expect(await envTestExists(tempDir)).toBe(false);
+      const messages = info.mock.calls.flat().join("\n");
+      expect(info).toHaveBeenCalledWith(
+        'Skipping tests/env.test.ts: the project\'s "test" script could not be confirmed to run only Vitest.',
+      );
+      expect(messages).not.toContain(testScript);
+      expect(messages).not.toContain("private-value");
+    } finally {
+      info.mockRestore();
+    }
+  });
+
+  it.each(
+    ["jest", "@playwright/test", "playwright", "mocha", "ava", "jasmine"].flatMap(
+      (runner) =>
+        (["dependencies", "devDependencies"] as const).map((section) => ({
+          runner,
+          section,
+        })),
+    ),
+  )(
+    "vetoes the Vitest env test for $runner in $section",
+    async ({ runner, section }): Promise<void> => {
+      const tempDir = await createProject();
+      const info = vi.spyOn(log, "info").mockImplementation((): void => undefined);
+      try {
+        const result = await run(
+          tempDir,
+          { filesToCreate: [envFile(false), envTestFile], conflictingFiles: [] },
+          {
+            yes: true,
+            force: false,
+            scripts: { test: "vitest run" },
+            [section]: { [runner]: "^1.0.0" },
+          },
+        );
+
+        expect(result.createdFiles).toEqual(["src/env.ts"]);
+        expect(result.skippedFiles).toContain("tests/env.test.ts");
+        expect(await envTestExists(tempDir)).toBe(false);
+        expect(info).toHaveBeenCalledWith(
+          `Skipping tests/env.test.ts: declared test runner "${runner}" may also collect the file.`,
+        );
+      } finally {
+        info.mockRestore();
+      }
+    },
+  );
+
+  it("reports both a declared runner and an unrecognized script", async (): Promise<void> => {
+    const tempDir = await createProject();
+    const testScript = "env PRIVATE_TOKEN=private-value vitest run";
+    const info = vi.spyOn(log, "info").mockImplementation((): void => undefined);
+    try {
+      const result = await run(
+        tempDir,
+        { filesToCreate: [envFile(false), envTestFile], conflictingFiles: [] },
+        {
+          yes: true,
+          force: false,
+          scripts: { test: testScript },
+          devDependencies: { jest: "^1.0.0" },
+        },
+      );
+
+      expect(result.skippedFiles).toContain("tests/env.test.ts");
+      expect(await envTestExists(tempDir)).toBe(false);
+      expect(info).toHaveBeenCalledWith(
+        'Skipping tests/env.test.ts: the project\'s "test" script could not be confirmed to run only Vitest; declared test runner "jest" may also collect the file.',
+      );
+      expect(info.mock.calls.flat().join("\n")).not.toContain("private-value");
+    } finally {
+      info.mockRestore();
+    }
+  });
+
+  it("names every declared runner across dependency sections", async (): Promise<void> => {
+    const tempDir = await createProject();
+    const info = vi.spyOn(log, "info").mockImplementation((): void => undefined);
+    try {
+      const result = await run(
+        tempDir,
+        { filesToCreate: [envFile(false), envTestFile], conflictingFiles: [] },
+        {
+          yes: true,
+          force: false,
+          dependencies: { jest: "^1.0.0" },
+          devDependencies: { mocha: "^1.0.0" },
+        },
+      );
+
+      expect(result.skippedFiles).toContain("tests/env.test.ts");
+      expect(await envTestExists(tempDir)).toBe(false);
+      expect(info).toHaveBeenCalledWith(
+        'Skipping tests/env.test.ts: declared test runner "jest" may also collect the file; declared test runner "mocha" may also collect the file.',
+      );
+    } finally {
+      info.mockRestore();
+    }
+  });
+
+  it("uses the current package.json runner veto when its update is skipped", async (): Promise<void> => {
+    const tempDir = await createProject();
+    const base = createPlan(tempDir);
+    const current = {
+      ...base.packageJsonPlan.current,
+      scripts: { test: "vitest run" },
+      devDependencies: { jest: "^1.0.0" },
+    };
+    const currentSource = `${JSON.stringify(current, null, 2)}\n`;
+    await writeFile(path.join(tempDir, "package.json"), currentSource);
+    const decision = vi
+      .spyOn(prompts, "promptFileConflictResolution")
+      .mockResolvedValue("skip");
+    const info = vi.spyOn(log, "info").mockImplementation((): void => undefined);
+    try {
+      const result = await executeApplyPlan(
+        {
+          ...base,
+          filesToCreate: [envFile(false), envTestFile],
+          conflictingFiles: [],
+          packageJsonPlan: {
+            ...base.packageJsonPlan,
+            current,
+            next: { ...base.packageJsonPlan.next, scripts: { test: "vitest run" } },
+            summary: { ...base.packageJsonPlan.summary, changed: true },
+          },
+        },
+        {
+          targetDir: tempDir,
+          packageManager: "npm",
+          yes: false,
+          force: false,
+          dryRun: false,
+          backup: false,
+          shouldInstall: false,
+          shouldRunChecks: false,
+        },
+      );
+
+      expect(result.packageJsonUpdated).toBe(false);
+      expect(await readFile(path.join(tempDir, "package.json"), "utf8")).toBe(
+        currentSource,
+      );
+      expect(result.skippedFiles).toContain("tests/env.test.ts");
+      expect(await envTestExists(tempDir)).toBe(false);
+      expect(info).toHaveBeenCalledWith(
+        'Skipping tests/env.test.ts: declared test runner "jest" may also collect the file.',
+      );
+    } finally {
+      decision.mockRestore();
+      info.mockRestore();
+    }
+  });
+
+  it.each(["conflict", "skip"] as const)(
+    "preserves the dependency outcome before the Vitest veto when src/env.ts resolution is %s",
+    async (resolution): Promise<void> => {
+      const tempDir = await createProject(PROJECT_ENV);
+      const decision = vi
+        .spyOn(prompts, "promptFileConflictResolution")
+        .mockResolvedValue(resolution);
+      const info = vi.spyOn(log, "info").mockImplementation((): void => undefined);
+      const warn = vi.spyOn(log, "warn").mockImplementation((): void => undefined);
+      try {
+        const result = await run(
+          tempDir,
+          { filesToCreate: [envTestFile], conflictingFiles: [envFile(true)] },
+          {
+            yes: false,
+            force: false,
+            scripts: { test: "jest" },
+            devDependencies: { jest: "^1.0.0" },
+          },
+        );
+
+        if (resolution === "conflict") {
+          expect(result.deferredFiles).toEqual(["tests/env.test.ts"]);
+          expect(result.skippedFiles).not.toContain("tests/env.test.ts");
+          expect(warn).toHaveBeenCalledWith(
+            "Not adding tests/env.test.ts yet: resolve the conflict in src/env.ts and re-run strong-mode.",
+          );
+        } else {
+          expect(result.deferredFiles).toEqual([]);
+          expect(result.skippedFiles).toContain("tests/env.test.ts");
+          expect(info).toHaveBeenCalledWith(
+            "Skipping tests/env.test.ts: src/env.ts does not use the strong-mode template.",
+          );
+        }
+        expect(await envTestExists(tempDir)).toBe(false);
+        const messages = [...info.mock.calls, ...warn.mock.calls].flat().join("\n");
+        expect(messages).not.toContain(
+          '"test" script could not be confirmed to run only Vitest',
+        );
+        expect(messages).not.toContain(
+          'declared test runner "jest" may also collect the file',
+        );
+      } finally {
+        decision.mockRestore();
+        info.mockRestore();
+        warn.mockRestore();
+      }
+    },
+  );
+
+  it("writes tests/env.test.ts when src/env.ts is created", async (): Promise<void> => {
+    const tempDir = await createProject();
+
+    const result = await run(
+      tempDir,
+      { filesToCreate: [envFile(false), envTestFile], conflictingFiles: [] },
+      { yes: true, force: false },
+    );
+
+    expect(result.createdFiles).toEqual(["src/env.ts", "tests/env.test.ts"]);
+    expect(await envTestExists(tempDir)).toBe(true);
+  });
+
+  it("writes tests/env.test.ts when src/env.ts already matches the template", async (): Promise<void> => {
+    const tempDir = await createProject(TEMPLATE_ENV);
+
+    const result = await run(
+      tempDir,
+      { filesToCreate: [envTestFile], conflictingFiles: [envFile(true)] },
+      { yes: true, force: false },
+    );
+
+    expect(result.createdFiles).toContain("tests/env.test.ts");
+    expect(await envTestExists(tempDir)).toBe(true);
+  });
+});
+
+describe("executeApplyPlan replaced dependencies", (): void => {
+  const USER_ESLINT = "export default [{ rules: { semi: 'error' } }];\n";
+  const TEMPLATE_ESLINT = "export default [];\n";
+  const currentPackageJson = {
+    name: "fixture-project",
+    private: true,
+    devDependencies: { "eslint-plugin-eslint-comments": "^3.2.0" },
+  };
+  const nextPackageJson = {
+    ...currentPackageJson,
+    devDependencies: {
+      "@eslint-community/eslint-plugin-eslint-comments": "^4.8.1",
+      "eslint-plugin-eslint-comments": "^3.2.0",
+    },
+  };
+
+  const runWithEslintConfig = async (
+    flags: {
+      readonly yes: boolean;
+      readonly force: boolean;
+    },
+    setup: {
+      readonly workspaceRoot?: boolean;
+      readonly files?: Readonly<Record<string, string>>;
+      readonly scripts?: Readonly<Record<string, string>>;
+    } = {},
+  ): Promise<Record<string, string>> => {
+    const tempDir = await mkdtemp(
+      path.join(os.tmpdir(), "strong-mode-execute-replaced-"),
+    );
+    for (const [file, content] of Object.entries(setup.files ?? {})) {
+      await writeFile(path.join(tempDir, file), content);
+    }
+    if (setup.workspaceRoot === true) {
+      await writeFile(
+        path.join(tempDir, "pnpm-workspace.yaml"),
+        "packages:\n  - packages/*\n",
+      );
+    }
+    const packageJsonPath = path.join(tempDir, "package.json");
+    await writeFile(
+      packageJsonPath,
+      `${JSON.stringify(currentPackageJson, null, 2)}\n`,
+    );
+    await writeFile(path.join(tempDir, "eslint.config.mjs"), USER_ESLINT);
+    const base = createPlan(tempDir);
+
+    await executeApplyPlan(
+      {
+        ...base,
+        conflictingFiles: [
+          {
+            relativePath: "eslint.config.mjs",
+            sourceTemplatePath: "/template/eslint.config.mjs",
+            content: TEMPLATE_ESLINT,
+            exists: true,
+          },
+        ],
+        packageJsonPlan: {
+          ...base.packageJsonPlan,
+          current: currentPackageJson,
+          next:
+            setup.scripts === undefined
+              ? nextPackageJson
+              : { ...nextPackageJson, scripts: { ...setup.scripts } },
+          summary: { ...base.packageJsonPlan.summary, changed: true },
+        },
+      },
+      {
+        targetDir: tempDir,
+        packageManager: "npm",
+        ...flags,
+        dryRun: false,
+        backup: false,
+        shouldInstall: false,
+        shouldRunChecks: false,
+      },
+    );
+
+    const written = JSON.parse(await readFile(packageJsonPath, "utf8")) as {
+      devDependencies: Record<string, string>;
+    };
+    return written.devDependencies;
+  };
+
+  it("removes the old plugin when eslint.config.mjs is replaced by the template", async (): Promise<void> => {
+    const devDependencies = await runWithEslintConfig({ yes: true, force: true });
+
+    expect(devDependencies).toEqual({
+      "@eslint-community/eslint-plugin-eslint-comments": "^4.8.1",
+    });
+  });
+
+  it("keeps the old plugin at a workspace root, where other packages may still use it", async (): Promise<void> => {
+    const devDependencies = await runWithEslintConfig(
+      { yes: true, force: true },
+      { workspaceRoot: true },
+    );
+
+    expect(devDependencies).toHaveProperty("eslint-plugin-eslint-comments");
+  });
+
+  it("keeps the old plugin while an eslint.config.js, which ESLint loads first, may import it", async (): Promise<void> => {
+    const devDependencies = await runWithEslintConfig(
+      { yes: true, force: true },
+      {
+        files: {
+          "eslint.config.js":
+            'import comments from "eslint-plugin-eslint-comments";\nexport default [];\n',
+        },
+      },
+    );
+
+    expect(devDependencies).toHaveProperty("eslint-plugin-eslint-comments");
+  });
+
+  it("keeps the old plugin when the lint script selects another config", async (): Promise<void> => {
+    const devDependencies = await runWithEslintConfig(
+      { yes: true, force: true },
+      { scripts: { lint: "eslint -c eslint.legacy.mjs ." } },
+    );
+
+    expect(devDependencies).toHaveProperty("eslint-plugin-eslint-comments");
+  });
+
+  it("keeps the old plugin when a script the lint script delegates to selects another config", async (): Promise<void> => {
+    const devDependencies = await runWithEslintConfig(
+      { yes: true, force: true },
+      {
+        scripts: {
+          lint: "npm run lint:code",
+          "lint:code": "eslint --config config/eslint.mjs .",
+        },
+      },
+    );
+
+    expect(devDependencies).toHaveProperty("eslint-plugin-eslint-comments");
+  });
+
+  it("keeps the old plugin while eslint.config.mjs is left in conflict", async (): Promise<void> => {
+    const devDependencies = await runWithEslintConfig({ yes: true, force: false });
+
+    expect(devDependencies).toHaveProperty("eslint-plugin-eslint-comments");
   });
 });
 

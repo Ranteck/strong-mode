@@ -27,6 +27,9 @@ export interface PackageJsonChangeSummary {
   // leader: they are added after install, pinned to the leader version the package
   // manager actually resolved.
   readonly postInstallLockstep: readonly string[];
+  // An existing package.json had no "type" and is switched to "module" (Node's
+  // default for such a package is CommonJS).
+  readonly setModuleType: boolean;
   readonly changed: boolean;
 }
 
@@ -61,6 +64,8 @@ export interface ApplySummary {
   // Lockstep followers not added because install did not run or the installed
   // leader could not be resolved.
   readonly deferredLockstep: readonly string[];
+  // Dependent files held back because their dependency was left in conflict.
+  readonly deferredFiles: readonly string[];
   readonly packageJsonUpdated: boolean;
   readonly installRan: boolean;
   readonly checksRan: readonly string[];

@@ -51,6 +51,7 @@ describe("executeApplyPlan when package.json is skipped", (): void => {
           addedDevDependencies: [],
           updatedPrepareScript: false,
           postInstallLockstep: ["@vitest/coverage-v8"],
+          setModuleType: false,
           changed: true,
         },
       },
@@ -75,5 +76,75 @@ describe("executeApplyPlan when package.json is skipped", (): void => {
     expect(
       JSON.parse(await readFile(path.join(tempDir, "package.json"), "utf8")),
     ).toEqual(current);
+  });
+
+  it("does not add the Vitest env test when the package.json that would run it is skipped", async (): Promise<void> => {
+    const tempDir = await mkdtemp(path.join(os.tmpdir(), "strong-mode-execute-skip-"));
+    const current = {
+      name: "fixture-project",
+      private: true,
+      scripts: { test: 'echo "Error: no test specified" && exit 1' },
+    };
+    await writeFile(
+      path.join(tempDir, "package.json"),
+      `${JSON.stringify(current, null, 2)}\n`,
+    );
+    const plan: ApplyPlan = {
+      projectName: "fixture-project",
+      filesToCreate: [
+        {
+          relativePath: "src/env.ts",
+          sourceTemplatePath: "/template/src/env.ts",
+          content: "export const env = {};\n",
+          exists: false,
+        },
+        {
+          relativePath: "tests/env.test.ts",
+          sourceTemplatePath: "/template/tests/env.test.ts",
+          content: "// tests the template env.ts\n",
+          exists: false,
+        },
+      ],
+      conflictingFiles: [],
+      packageJsonPlan: {
+        path: path.join(tempDir, "package.json"),
+        exists: true,
+        current,
+        next: {
+          ...current,
+          scripts: { test: "vitest run" },
+          devDependencies: { vitest: "^5.0.2" },
+        },
+        summary: {
+          addedScripts: [],
+          updatedScripts: ["test"],
+          addedDependencies: [],
+          addedDevDependencies: ["vitest"],
+          updatedPrepareScript: false,
+          postInstallLockstep: [],
+          setModuleType: false,
+          changed: true,
+        },
+      },
+      requiresInstall: true,
+    };
+
+    const result = await executeApplyPlan(plan, {
+      targetDir: tempDir,
+      packageManager: "npm",
+      yes: false,
+      force: false,
+      dryRun: false,
+      backup: false,
+      shouldInstall: false,
+      shouldRunChecks: false,
+    });
+
+    expect(result.packageJsonUpdated).toBe(false);
+    expect(result.createdFiles).toEqual(["src/env.ts"]);
+    expect(result.skippedFiles).toContain("tests/env.test.ts");
+    await expect(
+      readFile(path.join(tempDir, "tests/env.test.ts"), "utf8"),
+    ).rejects.toThrow();
   });
 });

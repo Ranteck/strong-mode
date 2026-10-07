@@ -1,0 +1,6 @@
+# Lockfiles are written by the package manager, not by hand.
+package-lock.json
+pnpm-lock.yaml
+yarn.lock
+bun.lock
+bun.lockb
