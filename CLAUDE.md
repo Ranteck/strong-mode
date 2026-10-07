@@ -2,6 +2,14 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+## Read first
+
+The project's AI-Native SDLC chain. `intent/intent.md` is the north star: compare every plan or change against it, and amend it only with the owner's approval, through its `## Cambios` section. `intent/spec.md` traces each requirement to the intent and records its current status; `intent/plan.md` holds the work order. Update the spec's statuses and the plan when a PR or cycle ends.
+
+- @intent/intent.md
+- @intent/spec.md
+- @intent/plan.md
+
 ## Project Overview
 
 `strong-mode` is an ultra-strict TypeScript CLI tool focused on strong-mode defaults for AI-assisted coding. It retrofits existing projects with strict TypeScript configurations and quality gates via the `apply` command.

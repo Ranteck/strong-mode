@@ -1,5 +1,11 @@
 # Repository Guidelines
 
+## Product Intent & Lifecycle
+
+strong-mode makes any TypeScript project stricter, the way `"strict": true` makes the type checker stricter, but across the whole project: types, lint, dead code, duplication, reuse, architecture and supply chain. It composes proven tools instead of reinventing them, installs with one command (`npx strong-mode`), and works for any TypeScript project, framework and package manager. Its own helpers stay small and deny-by-default.
+
+Before planning a change, read the AI-Native SDLC chain in `intent/`: `intent.md` (problem, expected outcome, constraints, out of scope; the north star), `spec.md` (requirements traced to the intent with their current status, design decisions, concerns) and `plan.md` (work order, risks, how to test). A change that falls outside `intent.md` or changes its concept stops until the owner approves an amendment in its `## Cambios` section.
+
 ## Project Structure & Module Organization
 
 This repository is a workspace for a TypeScript strong-mode toolkit.
