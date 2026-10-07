@@ -36,6 +36,6 @@ Los de cada paso del orden de trabajo. Las features grandes nuevas abren su prop
   - `npm run dead-code`;
   - `/e2e-pm-matrix` si cambian `src/apply`, `package-manager.ts`, `process.ts` o el template.
 - **Cambios en `intent/`:**
-  - `prettier --check`;
+  - `npm run format:check` (Prettier sobre todo el repo);
   - que los imports de `CLAUDE.md` y los links resuelvan;
   - que una sesión nueva cargue la cadena.
