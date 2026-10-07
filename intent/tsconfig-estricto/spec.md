@@ -1,6 +1,6 @@
 # Spec: tsconfig estricto al aplicar (desde intent.md 2026-10-07)
 
-Estado: borrador
+Estado: aceptado
 
 ## Requisitos
 
