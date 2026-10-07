@@ -1,6 +1,6 @@
 # Plan: tsconfig estricto al aplicar (desde intent.md 2026-10-07)
 
-Estado: borrador
+Estado: aceptado
 
 > **Para quien ejecute:** se implementa con `/graph-engineer` (Codex escribe y critica,
 > Claude arbitra), tarea por tarea, en el worktree `~/Proyectos/strong-mode-tsconfig`
