@@ -34,7 +34,9 @@ y auditoría de dependencias.
 - "Buscar otros proyectos que tengan la potencia para encontrar código muerto, duplicación de
   código, reutilización": componer herramientas existentes, no reimplementarlas.
 - No pisar el trabajo del usuario: conservar sus campos y scripts, con backup, merge o
-  conflicto marcado.
+  conflicto marcado. Excepción: las opciones de chequeo de tipos de `tsconfig.json` toman el
+  valor del template, porque son el núcleo de "más estricto" (ver
+  [tsconfig-estricto](tsconfig-estricto/intent.md)).
 - strong-mode cumple sus propias reglas: "un wrapper que vuelva más estricto [...] para evitar
   duplicación de código, código muerto, errores típicos de la IA en el vibecoding". Su código
   propio queda chico, sin duplicación ni código muerto.
@@ -67,3 +69,6 @@ y auditoría de dependencias.
 - 2026-10-07: se corrige la pregunta sobre CommonJS. Decía que strong-mode ya rechaza esos
   proyectos, pero en `main` no hay rechazo: llega con PR #9. Lo detectó la revisión de Codex;
   aprobado por el usuario.
+- 2026-10-07: "No pisar el trabajo del usuario" suma una excepción para las opciones de
+  chequeo de tipos de `tsconfig.json`. Chocaba con "volver más estricto" (C10) y el usuario
+  eligió que gane el template. Aprobado por el usuario.
