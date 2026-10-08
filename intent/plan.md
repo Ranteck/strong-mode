@@ -13,15 +13,15 @@ Los de cada paso del orden de trabajo. Las features grandes nuevas abren su prop
 - Limpieza: se borraron las ramas mergeadas y los worktrees de #9 y #10.
 - PR #11 mergeado (`4bf05ec`): la cadena `intent/` del AI-Native SDLC.
 - Dependencias: se cerraron las 17 alertas de Dependabot, todas de desarrollo. `npm audit fix` sin `--force` y Vitest a `^4.1.11` (GHSA-82fw) dejan `npm audit` en 0.
+- `tsconfig-estricto`, tareas 1–4 implementadas en `feat/strict-tsconfig-merge` (sin commit ni PR todavía): las 20 opciones de Type Checking toman los valores del template; el merge lee JSONC, edita en el lugar y avisa las opciones explícitas cambiadas, también en dry-run. Tests unitarios verifican el comportamiento; T7 y la matriz de gestores quedan pendientes. Ver [plan de la feature](tsconfig-estricto/plan.md).
 
 ## Orden de trabajo
 
-1. **C10:** que un `tsconfig.json` existente quede tan estricto como el del template. Es el núcleo de la intención.
-2. **Ciclo `intent/duplicacion-reutilizacion/`:** investigar herramientas existentes para R6 y R7 (C2).
-3. **C11 y C12:** frameworks con código fuera de `src/` y proyectos con otro runner.
-4. **C4, C5 y C6:** gates y preservación.
-5. **C3, CommonJS:** decidir si el soporte es parte de la intención. Si lo es, abrir un ciclo propio. En los dos casos, actualizar la frase de `intent.md` en `## Cambios`, con OK del usuario.
-6. C7 y C9.
+1. **Ciclo `intent/duplicacion-reutilizacion/`:** investigar herramientas existentes para R6 y R7 (C2).
+2. **C11, C12 y C15:** frameworks con código fuera de `src/`, proyectos con otro runner, `tsconfig.eslint.json` propios con opciones laxas y tsconfigs _solution-style_ con `references`.
+3. **C4, C5, C6 y C14:** gates, preservación y formato de archivos mergeados.
+4. **C3, CommonJS:** decidir si el soporte es parte de la intención. Si lo es, abrir un ciclo propio. En los dos casos, actualizar la frase de `intent.md` en `## Cambios`, con OK del usuario.
+5. C7 y C9.
 
 ## Riesgos
 

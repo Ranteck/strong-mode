@@ -12,6 +12,7 @@ import {
   MANAGED_TEMPLATE_FILES,
   REPLACED_DEV_DEPENDENCIES,
   TEMPLATE_PEER_REQUIREMENTS,
+  TYPE_CHECKING_OPTIONS,
 } from "./constants.js";
 
 describe("LOCKSTEP_DEV_DEPENDENCIES", (): void => {
@@ -48,6 +49,38 @@ describe("LOCKSTEP_DEV_DEPENDENCIES", (): void => {
         templatePackageJson.devDependencies[leader],
       );
     }
+  });
+});
+
+describe("TYPE_CHECKING_OPTIONS", (): void => {
+  it("are all set by the template tsconfig.json, which owns their values", (): void => {
+    const { compilerOptions } = JSON.parse(
+      readFileSync(path.join(resolveTemplateDir(), "tsconfig.json"), "utf8"),
+    ) as { compilerOptions: Record<string, unknown> };
+
+    expect(TYPE_CHECKING_OPTIONS).toHaveLength(20);
+    for (const option of TYPE_CHECKING_OPTIONS) {
+      expect(typeof compilerOptions[option], option).toBe("boolean");
+    }
+  });
+
+  it("are compiler options TypeScript recognizes", (): void => {
+    const parsed = ts.parseJsonConfigFileContent(
+      {
+        compilerOptions: Object.fromEntries(
+          TYPE_CHECKING_OPTIONS.map((option) => [option, true]),
+        ),
+        files: ["index.ts"],
+      },
+      ts.sys,
+      os.tmpdir(),
+    );
+
+    expect(
+      parsed.errors.map((error) =>
+        ts.flattenDiagnosticMessageText(error.messageText, "\n"),
+      ),
+    ).toEqual([]);
   });
 });
 

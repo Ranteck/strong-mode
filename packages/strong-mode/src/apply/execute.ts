@@ -10,7 +10,11 @@ import {
 } from "./constants.js";
 import { readInstalledVersion } from "./installed.js";
 import { backupFile, fileExists, readTextIfExists, writeTextFile } from "./io.js";
-import { isMergeableManagedFile, mergeManagedFileContent } from "./merge.js";
+import {
+  isMergeableManagedFile,
+  mergeManagedFileContent,
+  type RaisedOption,
+} from "./merge.js";
 import { dropReplacedDependencies, isDeclared } from "./patchers.js";
 import { scriptRunsVitest } from "./scripts.js";
 import { type ConflictResolution, promptFileConflictResolution } from "./prompts.js";
@@ -147,6 +151,26 @@ const applyNewFile = async (
   results.templateFiles.add(managedFile.relativePath);
 };
 
+const warnRaisedOptions = (
+  relativePath: string,
+  raised: readonly RaisedOption[],
+  dryRun: boolean,
+): void => {
+  if (raised.length === 0) {
+    return;
+  }
+
+  const changes = raised
+    .map(
+      ({ name, from, to }): string =>
+        `${name} (${JSON.stringify(from)} → ${JSON.stringify(to)})`,
+    )
+    .join(", ");
+  log.warn(
+    `${relativePath}: ${dryRun ? "would raise" : "raised"} ${changes} to the strong-mode values. Type errors they reveal in your code are expected; fix the code rather than lowering the options.`,
+  );
+};
+
 const applyConflictingFile = async (
   managedFile: ManagedFile,
   options: ExecuteApplyPlanOptions,
@@ -181,9 +205,13 @@ const applyConflictingFile = async (
     return;
   }
 
-  const nextContent =
+  const merge =
     decision === "merge"
       ? mergeManagedFileContent(managedFile.relativePath, existing, managedFile.content)
+      : undefined;
+  const nextContent =
+    decision === "merge"
+      ? merge?.content
       : decision === "conflict"
         ? buildConflictFileContent(existing, managedFile.content)
         : managedFile.content;
@@ -229,6 +257,11 @@ const applyConflictingFile = async (
     results.conflictedFiles.push(managedFile.relativePath);
   } else if (decision === "merge") {
     results.mergedFiles.push(managedFile.relativePath);
+    warnRaisedOptions(
+      managedFile.relativePath,
+      merge?.raisedOptions ?? [],
+      options.dryRun,
+    );
   } else {
     results.overwrittenFiles.push(managedFile.relativePath);
     results.templateFiles.add(managedFile.relativePath);

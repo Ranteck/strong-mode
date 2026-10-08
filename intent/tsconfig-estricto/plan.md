@@ -2,6 +2,14 @@
 
 Estado: aceptado
 
+Ejecución: tareas 1–4 implementadas localmente en `feat/strict-tsconfig-merge`, sin
+commits ni PR. La tarea 5 (T7, matriz de gestores y entrega) sigue pendiente.
+
+Adaptaciones al plan: se valida `compilerOptions` en ambos archivos de entrada; C10
+se registra como resuelto en esta rama, pendiente de merge a `main`. El formato se
+verifica solo en los archivos de esta feature para respetar los archivos excluidos
+por el usuario. La dependencia se instaló offline desde el cache autorizado.
+
 > **Para quien ejecute:** se implementa con `/graph-engineer` (Codex escribe y critica,
 > Claude arbitra), tarea por tarea, en el worktree `~/Proyectos/strong-mode-tsconfig`
 > (rama `feat/strict-tsconfig-merge`). Los pasos usan casillas (`- [ ]`).
@@ -61,7 +69,7 @@ rather than lowering the options.`
 **Produce:** `export const TYPE_CHECKING_OPTIONS: readonly string[]` en
 `packages/strong-mode/src/apply/constants.ts`.
 
-- [ ] **Paso 1: test que falla.** En `constants.test.ts`, sumar `TYPE_CHECKING_OPTIONS` al
+- [x] **Paso 1: test que falla.** En `constants.test.ts`, sumar `TYPE_CHECKING_OPTIONS` al
       import de `./constants.js` y este bloque al final:
 
 ```ts
@@ -97,9 +105,9 @@ describe("TYPE_CHECKING_OPTIONS", (): void => {
 });
 ```
 
-- [ ] **Paso 2:** `npm run test -w strong-mode -- src/apply/constants.test.ts` → falla
+- [x] **Paso 2:** `npm run test -w strong-mode -- src/apply/constants.test.ts` → falla
       (`TYPE_CHECKING_OPTIONS` no existe).
-- [ ] **Paso 3: implementación.** En `constants.ts`, después de `MANAGED_FILE_DEPENDENCIES`:
+- [x] **Paso 3: implementación.** En `constants.ts`, después de `MANAGED_FILE_DEPENDENCIES`:
 
 ```ts
 // TypeScript's own "Type Checking" option category (5.9). In tsconfig.json these
@@ -134,7 +142,7 @@ En `packages/scaffold-ultra/template/tsconfig.json`: sumar
 `"allowUnusedLabels": false` y `"allowUnreachableCode": false` después de
 `"noImplicitOverride": true`. Después, `npm run sync:template`.
 
-- [ ] **Paso 4:** el mismo comando del paso 2 pasa; `diff -rq packages/scaffold-ultra/template
+- [x] **Paso 4:** el mismo comando del paso 2 pasa; `diff -rq packages/scaffold-ultra/template
 packages/strong-mode/template` no imprime nada.
 - [ ] **Paso 5: commit** `feat(template): set every TypeScript type-checking option`.
 
@@ -164,9 +172,9 @@ export const mergeManagedFileContent: (
 ) => MergeResult | undefined;
 ```
 
-- [ ] **Paso 1: dependencia.** `npm install jsonc-parser@^3.3.1 -w strong-mode` (queda en
+- [x] **Paso 1: dependencia.** `npm install jsonc-parser@^3.3.1 -w strong-mode` (queda en
       `dependencies`).
-- [ ] **Paso 2: tests que fallan.** En `merge.test.ts`, los tests existentes pasan a leer
+- [x] **Paso 2: tests que fallan.** En `merge.test.ts`, los tests existentes pasan a leer
       `result?.content`, porque cambia el tipo de retorno; las aserciones no cambian. Los de
       `.gitignore` y `.prettierignore` pasan a
       `expect(result).toEqual({ content: "...", raisedOptions: [] })`. Sumar:
@@ -289,9 +297,9 @@ it("falls back to conflict markers when compilerOptions is not an object", (): v
 });
 ```
 
-- [ ] **Paso 3:** `npm run test -w strong-mode -- src/apply/merge.test.ts` → fallan los tests
+- [x] **Paso 3:** `npm run test -w strong-mode -- src/apply/merge.test.ts` → fallan los tests
       nuevos y los adaptados (`content` no existe).
-- [ ] **Paso 4: implementación.** En `merge.ts`:
+- [x] **Paso 4: implementación.** En `merge.ts`:
   - `import { applyEdits, modify, parse, type ModificationOptions, type ParseError } from "jsonc-parser";`
     e `import { TYPE_CHECKING_OPTIONS } from "./constants.js";`.
   - Exportar `RaisedOption` y `MergeResult` (arriba). `isPlainObject`, `cloneJsonValue`,
@@ -416,7 +424,7 @@ const TEMPLATE_OWNED_PATHS: Readonly<Record<string, readonly KeyPath[]>> = {
 - En `execute.ts` (`applyConflictingFile`), adaptar al tipo nuevo sin cambiar el
   comportamiento: guardar `const merge = decision === "merge" ? mergeManagedFileContent(...) : undefined;`
   y usar `merge?.content` donde hoy va el resultado del merge.
-- [ ] **Paso 5:** `npm run test -w strong-mode -- src/apply/merge.test.ts` pasa; después
+- [x] **Paso 5:** `npm run test -w strong-mode -- src/apply/merge.test.ts` pasa; después
       `npm run check` (typecheck, lint y todos los tests).
 - [ ] **Paso 6: commit** `feat(apply): raise type-checking options and edit tsconfig in place`.
 
@@ -426,7 +434,7 @@ const TEMPLATE_OWNED_PATHS: Readonly<Record<string, readonly KeyPath[]>> = {
 
 **Consume:** `MergeResult.raisedOptions` y `RaisedOption` (tarea 2).
 
-- [ ] **Paso 1: tests que fallan.** En `execute.test.ts`, dentro de
+- [x] **Paso 1: tests que fallan.** En `execute.test.ts`, dentro de
       `describe("executeApplyPlan", ...)`:
 
 ```ts
@@ -481,9 +489,9 @@ it.each([
 );
 ```
 
-- [ ] **Paso 2:** `npm run test -w strong-mode -- src/apply/execute.test.ts` → falla (no hay
+- [x] **Paso 2:** `npm run test -w strong-mode -- src/apply/execute.test.ts` → falla (no hay
       aviso).
-- [ ] **Paso 3: implementación.** En `execute.ts`, importar `type RaisedOption` de
+- [x] **Paso 3: implementación.** En `execute.ts`, importar `type RaisedOption` de
       `./merge.js` y sumar:
 
 ```ts
@@ -512,14 +520,14 @@ En `applyConflictingFile`, en la rama `decision === "merge"` que hoy hace
 `results.mergedFiles.push(...)`, llamar después a
 `warnRaisedOptions(managedFile.relativePath, merge?.raisedOptions ?? [], options.dryRun)`.
 
-- [ ] **Paso 4:** el comando del paso 2 pasa; después `npm run check`.
+- [x] **Paso 4:** el comando del paso 2 pasa; después `npm run check`.
 - [ ] **Paso 5: commit** `feat(apply): warn which tsconfig options were raised`.
 
 ### Tarea 4: documentación y estado del SDLC
 
 **Archivos:** `README.md` (+sync), `CLAUDE.md`, `intent/spec.md`, `intent/plan.md`, este plan.
 
-- [ ] **Paso 1: README**, sección "What it installs → TypeScript": reemplazar las dos viñetas
+- [x] **Paso 1: README**, sección "What it installs → TypeScript": reemplazar las dos viñetas
       por:
 
 ```markdown
@@ -533,20 +541,20 @@ En `applyConflictingFile`, en la rama `decision === "merge"` que hoy hace
 
 Después, `npm run sync:template`.
 
-- [ ] **Paso 2: `CLAUDE.md`**, en la descripción de `execute.ts`: después de
+- [x] **Paso 2: `CLAUDE.md`**, en la descripción de `execute.ts`: después de
       "structural merge (the ignore files by lines) via `src/apply/merge.ts`", sumar
       "(tsconfig files are read as JSONC with `jsonc-parser` and edited in place; in
       `tsconfig.json` the `TYPE_CHECKING_OPTIONS` always take the template's value and each
       raised option is warned)".
-- [ ] **Paso 3: `intent/spec.md`.**
+- [x] **Paso 3: `intent/spec.md`.**
   - R2 pasa a `verificado`, con "Cómo se cumple hoy" actualizado.
-  - C10 queda "Resuelto en `main`" y suma C14 y C15, con el texto de los concerns CF2 y CF3
+  - C10 queda "Resuelto en la rama `feat/strict-tsconfig-merge`, pendiente de merge a `main`" y suma C14 y C15, con el texto de los concerns CF2 y CF3
     de [spec.md](spec.md).
-- [ ] **Paso 4: `intent/plan.md`.**
-  - "Hecho" suma este PR.
+- [x] **Paso 4: `intent/plan.md`.**
+  - "Hecho" suma esta implementación local, sin afirmar un PR o merge todavía.
   - C10 sale del orden de trabajo.
-  - C14 entra junto con los gates (paso 4) y C15 junto con C11.
-- [ ] **Paso 5:** `npm run format:check`; que los links de `intent/` resuelvan.
+  - C14 entra junto con los gates y C15 junto con C11.
+- [x] **Paso 5:** Prettier con `--check` sobre los archivos de esta feature; que los links de `intent/` resuelvan.
 - [ ] **Paso 6: commit** `docs: document the strict tsconfig merge`.
 
 ### Tarea 5: verificación de punta a punta (T7) y entrega

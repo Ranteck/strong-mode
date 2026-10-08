@@ -1,3 +1,23 @@
+import {
+  applyEdits,
+  modify,
+  parse,
+  type ModificationOptions,
+  type ParseError,
+} from "jsonc-parser";
+import { TYPE_CHECKING_OPTIONS } from "./constants.js";
+
+export interface RaisedOption {
+  readonly name: string;
+  readonly from: unknown;
+  readonly to: unknown;
+}
+
+export interface MergeResult {
+  readonly content: string;
+  readonly raisedOptions: readonly RaisedOption[];
+}
+
 const isPlainObject = (value: unknown): value is Record<string, unknown> =>
   typeof value === "object" && value !== null && !Array.isArray(value);
 
@@ -47,29 +67,79 @@ const mergeJsonValues = (current: unknown, incoming: unknown): unknown => {
   return cloneJsonValue(current);
 };
 
-const parseJsonObject = (source: string): Record<string, unknown> | undefined => {
-  let parsed: unknown;
+type KeyPath = readonly string[];
 
-  try {
-    parsed = JSON.parse(source) as unknown;
-  } catch {
+const parseJsoncObject = (source: string): Record<string, unknown> | undefined => {
+  const errors: ParseError[] = [];
+  const parsed: unknown = parse(source, errors, { allowTrailingComma: true });
+
+  if (errors.length !== 0 || !isPlainObject(parsed)) {
     return undefined;
   }
 
-  if (!isPlainObject(parsed)) {
-    return undefined;
-  }
-
-  return parsed;
+  const compilerOptions = parsed.compilerOptions;
+  return compilerOptions === undefined || isPlainObject(compilerOptions)
+    ? parsed
+    : undefined;
 };
+
+const valueAt = (root: unknown, keyPath: KeyPath): unknown => {
+  let value = root;
+  for (const key of keyPath) {
+    if (!isPlainObject(value)) {
+      return undefined;
+    }
+    value = value[key];
+  }
+
+  return value;
+};
+
+const isSameJson = (left: unknown, right: unknown): boolean =>
+  JSON.stringify(left) === JSON.stringify(right);
+
+const MODIFY_OPTIONS: ModificationOptions = {
+  formattingOptions: { insertSpaces: true, tabSize: 2 },
+};
+
+// The merge never removes keys, so walking the target is enough. Descending into
+// objects avoids replacing their comments and formatting when one value changes.
+const applyDifferences = (
+  text: string,
+  current: unknown,
+  target: unknown,
+  keyPath: KeyPath,
+): string => {
+  if (isPlainObject(current) && isPlainObject(target)) {
+    let next = text;
+    for (const [key, value] of Object.entries(target)) {
+      next = applyDifferences(next, current[key], value, [...keyPath, key]);
+    }
+    return next;
+  }
+
+  return isSameJson(current, target)
+    ? text
+    : applyEdits(text, modify(text, [...keyPath], target, MODIFY_OPTIONS));
+};
+
+const raisedTypeCheckingOptions = (
+  current: Record<string, unknown>,
+  merged: Record<string, unknown>,
+): RaisedOption[] =>
+  TYPE_CHECKING_OPTIONS.flatMap((name): RaisedOption[] => {
+    const from = valueAt(current, ["compilerOptions", name]);
+    const to = valueAt(merged, ["compilerOptions", name]);
+    return from === undefined || isSameJson(from, to) ? [] : [{ name, from, to }];
+  });
 
 const mergeTsconfig = (
   existingContent: string,
   incomingContent: string,
-  templateOwnedKeys: readonly string[] = [],
-): string | undefined => {
-  const current = parseJsonObject(existingContent);
-  const incoming = parseJsonObject(incomingContent);
+  templateOwnedPaths: readonly KeyPath[] = [],
+): MergeResult | undefined => {
+  const current = parseJsoncObject(existingContent);
+  const incoming = parseJsoncObject(incomingContent);
 
   if (current === undefined || incoming === undefined) {
     return undefined;
@@ -80,22 +150,29 @@ const mergeTsconfig = (
     return undefined;
   }
 
-  for (const key of templateOwnedKeys) {
-    if (key in incoming) {
-      merged[key] = cloneJsonValue(incoming[key]);
+  for (const ownedPath of templateOwnedPaths) {
+    const templateValue = valueAt(incoming, ownedPath);
+    const parent = valueAt(merged, ownedPath.slice(0, -1));
+    const key = ownedPath.at(-1);
+    if (templateValue !== undefined && isPlainObject(parent) && key !== undefined) {
+      parent[key] = cloneJsonValue(templateValue);
     }
   }
 
-  return `${JSON.stringify(merged, null, 2)}\n`;
+  return {
+    content: applyDifferences(existingContent, current, merged, []),
+    raisedOptions: raisedTypeCheckingOptions(current, merged),
+  };
 };
 
-// tsconfig.eslint.json is the program for every file ESLint lints, and `exclude`
-// wins over `include`, so an exclusion kept from the project (for example
-// "tests") would bring back the "file was not found in any project" parsing errors.
-// Files that should not be linted are ignored through .gitignore or the ESLint
-// config instead; `exclude` is the template's.
-const TEMPLATE_OWNED_KEYS: Readonly<Record<string, readonly string[]>> = {
-  "tsconfig.eslint.json": ["exclude"],
+const TEMPLATE_OWNED_PATHS: Readonly<Record<string, readonly KeyPath[]>> = {
+  // Type-checking options are the approved exception to keeping project values.
+  "tsconfig.json": TYPE_CHECKING_OPTIONS.map(
+    (option): KeyPath => ["compilerOptions", option],
+  ),
+  // An exclusion kept from the project could drop linted files out of the program.
+  // Files that should not be linted are ignored through .gitignore or ESLint instead.
+  "tsconfig.eslint.json": [["exclude"]],
 };
 
 const mergeGitignore = (existingContent: string, incomingContent: string): string => {
@@ -130,17 +207,20 @@ export const mergeManagedFileContent = (
   relativePath: string,
   existingContent: string,
   incomingContent: string,
-): string | undefined => {
+): MergeResult | undefined => {
   if (TSCONFIG_FILES.includes(relativePath)) {
     return mergeTsconfig(
       existingContent,
       incomingContent,
-      TEMPLATE_OWNED_KEYS[relativePath],
+      TEMPLATE_OWNED_PATHS[relativePath],
     );
   }
 
   if (LINE_LIST_FILES.includes(relativePath)) {
-    return mergeGitignore(existingContent, incomingContent);
+    return {
+      content: mergeGitignore(existingContent, incomingContent),
+      raisedOptions: [],
+    };
   }
 
   return undefined;

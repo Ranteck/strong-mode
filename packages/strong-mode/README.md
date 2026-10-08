@@ -16,8 +16,14 @@ npx strong-mode
 
 **TypeScript** (`tsconfig.json`):
 
-- `noUncheckedIndexedAccess`, `exactOptionalPropertyTypes`, `noImplicitOverride`
-- `skipLibCheck: false`
+- All 20 options in TypeScript 5.9's _Type Checking_ category (`strict` and its family,
+  `noUncheckedIndexedAccess`, `exactOptionalPropertyTypes`, `noImplicitOverride`,
+  `allowUnreachableCode: false`, …), plus `skipLibCheck: false` by default
+- An existing `tsconfig.json` is read as JSONC and edited in place, keeping comments and
+  formatting. Its type-checking options take the template's values, and strong-mode lists
+  each explicit option it raised (or would raise with `--dry-run`). Other scalars, including
+  `skipLibCheck`, `verbatimModuleSyntax` and `isolatedModules`, keep the project's values;
+  arrays are unioned and the project's `extends` is preserved.
 
 **ESLint** (`eslint.config.mjs`):
 

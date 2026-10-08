@@ -17,7 +17,7 @@ describe("mergeManagedFileContent", (): void => {
         include: ["src/**/*", "tests/**/*"],
       }),
     );
-    const merged = JSON.parse(result ?? "{}") as {
+    const merged = JSON.parse(result?.content ?? "{}") as {
       extends?: string;
       include?: string[];
       compilerOptions?: Record<string, unknown>;
@@ -37,7 +37,7 @@ describe("mergeManagedFileContent", (): void => {
         exclude: ["node_modules", "dist", "coverage"],
       }),
     );
-    const merged = JSON.parse(result ?? "{}") as { exclude?: string[] };
+    const merged = JSON.parse(result?.content ?? "{}") as { exclude?: string[] };
 
     expect(merged.exclude).toEqual(["node_modules", "dist", "coverage"]);
   });
@@ -48,7 +48,7 @@ describe("mergeManagedFileContent", (): void => {
       JSON.stringify({ exclude: ["tests"] }),
       JSON.stringify({ exclude: ["node_modules"] }),
     );
-    const merged = JSON.parse(result ?? "{}") as { exclude?: string[] };
+    const merged = JSON.parse(result?.content ?? "{}") as { exclude?: string[] };
 
     expect(merged.exclude).toEqual(["tests", "node_modules"]);
   });
@@ -78,7 +78,7 @@ describe("mergeManagedFileContent", (): void => {
 
     expect(result).toBeDefined();
 
-    const merged = JSON.parse(result ?? "{}") as {
+    const merged = JSON.parse(result?.content ?? "{}") as {
       extends?: string;
       include?: string[];
       exclude?: string[];
@@ -110,7 +110,10 @@ describe("mergeManagedFileContent", (): void => {
       "dist/\ncoverage/\n.env\n.DS_Store\n",
     );
 
-    expect(result).toBe("node_modules/\ndist/\n.env\ncoverage/\n.DS_Store\n");
+    expect(result).toEqual({
+      content: "node_modules/\ndist/\n.env\ncoverage/\n.DS_Store\n",
+      raisedOptions: [],
+    });
   });
 
   it("merges .prettierignore entries without duplicates", (): void => {
@@ -120,8 +123,194 @@ describe("mergeManagedFileContent", (): void => {
       "pnpm-lock.yaml\npackage-lock.json\n",
     );
 
-    expect(result).toBe("build/\npnpm-lock.yaml\npackage-lock.json\n");
+    expect(result).toEqual({
+      content: "build/\npnpm-lock.yaml\npackage-lock.json\n",
+      raisedOptions: [],
+    });
   });
+
+  it("raises explicit type-checking options in category order, including false template values", (): void => {
+    const result = mergeManagedFileContent(
+      "tsconfig.json",
+      JSON.stringify({
+        compilerOptions: {
+          allowUnreachableCode: true,
+          noUnusedLocals: false,
+          strict: false,
+          strictBuiltinIteratorReturn: false,
+          exactOptionalPropertyTypes: true,
+          allowUnusedLabels: true,
+          target: "ES2020",
+        },
+      }),
+      JSON.stringify({
+        compilerOptions: {
+          strict: true,
+          strictBuiltinIteratorReturn: true,
+          noUnusedLocals: true,
+          exactOptionalPropertyTypes: true,
+          noUncheckedIndexedAccess: true,
+          allowUnusedLabels: false,
+          allowUnreachableCode: false,
+          target: "ES2024",
+        },
+      }),
+    );
+    const merged = JSON.parse(result?.content ?? "{}") as {
+      compilerOptions?: Record<string, unknown>;
+    };
+
+    expect(merged.compilerOptions).toEqual({
+      allowUnreachableCode: false,
+      noUnusedLocals: true,
+      strict: true,
+      strictBuiltinIteratorReturn: true,
+      exactOptionalPropertyTypes: true,
+      allowUnusedLabels: false,
+      target: "ES2020",
+      noUncheckedIndexedAccess: true,
+    });
+    expect(result?.raisedOptions).toEqual([
+      { name: "strict", from: false, to: true },
+      { name: "strictBuiltinIteratorReturn", from: false, to: true },
+      { name: "noUnusedLocals", from: false, to: true },
+      { name: "allowUnusedLabels", from: true, to: false },
+      { name: "allowUnreachableCode", from: true, to: false },
+    ]);
+  });
+
+  it("keeps extends and options outside the type-checking category", (): void => {
+    const result = mergeManagedFileContent(
+      "tsconfig.json",
+      JSON.stringify({
+        extends: "@tsconfig/node22/tsconfig.json",
+        compilerOptions: {
+          skipLibCheck: true,
+          verbatimModuleSyntax: false,
+          isolatedModules: false,
+          module: "commonjs",
+          noUnusedParameters: false,
+        },
+      }),
+      JSON.stringify({
+        extends: "./base.json",
+        compilerOptions: {
+          skipLibCheck: false,
+          verbatimModuleSyntax: true,
+          isolatedModules: true,
+          module: "NodeNext",
+          strict: true,
+        },
+      }),
+    );
+    const merged = JSON.parse(result?.content ?? "{}") as {
+      extends?: string;
+      compilerOptions?: Record<string, unknown>;
+    };
+
+    expect(merged.extends).toBe("@tsconfig/node22/tsconfig.json");
+    expect(merged.compilerOptions).toEqual({
+      skipLibCheck: true,
+      verbatimModuleSyntax: false,
+      isolatedModules: false,
+      module: "commonjs",
+      noUnusedParameters: false,
+      strict: true,
+    });
+    expect(result?.raisedOptions).toEqual([]);
+  });
+
+  it("does not force type-checking options in tsconfig.eslint.json", (): void => {
+    const result = mergeManagedFileContent(
+      "tsconfig.eslint.json",
+      '{ "compilerOptions": { "strict": false }, "exclude": ["tests"] }',
+      '{ "compilerOptions": { "strict": true }, "exclude": ["node_modules"] }',
+    );
+
+    expect(JSON.parse(result?.content ?? "{}")).toEqual({
+      compilerOptions: { strict: false },
+      exclude: ["node_modules"],
+    });
+    expect(result?.raisedOptions).toEqual([]);
+  });
+
+  it("edits a commented tsconfig in place, keeping comments, trailing commas and CRLF", (): void => {
+    const existing = [
+      "{",
+      "  // Visit https://aka.ms/tsconfig to read more about this file",
+      '  "compilerOptions": {',
+      '    "strict": false, // turned off while migrating',
+      '    "target": "es2016",',
+      "  },",
+      "}",
+      "",
+    ].join("\r\n");
+    const result = mergeManagedFileContent(
+      "tsconfig.json",
+      existing,
+      JSON.stringify({ compilerOptions: { strict: true, noImplicitOverride: true } }),
+    );
+    const content = result?.content ?? "";
+
+    expect(content).toContain(
+      "// Visit https://aka.ms/tsconfig to read more about this file",
+    );
+    expect(content).toContain('"strict": true, // turned off while migrating');
+    expect(content).toContain('"target": "es2016",');
+    expect(content).toContain('    "noImplicitOverride": true');
+    expect(content).toContain("  },\r\n}");
+    expect(content.indexOf('"strict"')).toBeLessThan(content.indexOf('"target"'));
+    expect(content.indexOf('"target"')).toBeLessThan(
+      content.indexOf('"noImplicitOverride"'),
+    );
+    expect(content.replaceAll("\r\n", "")).not.toContain("\n");
+    expect(result?.raisedOptions).toEqual([{ name: "strict", from: false, to: true }]);
+  });
+
+  it("keeps a JSONC file byte-for-byte when the target does not differ", (): void => {
+    const existing =
+      '{\n\t/* user formatting */ "compilerOptions": { "strict": true, },\n}\n';
+    expect(
+      mergeManagedFileContent(
+        "tsconfig.json",
+        existing,
+        '{"compilerOptions":{"strict":true}}',
+      ),
+    ).toEqual({ content: existing, raisedOptions: [] });
+  });
+
+  it("keeps user spacing when only an existing scalar changes", (): void => {
+    const existing =
+      '{\r\n\t"compilerOptions" : { "strict" : false, /* keep */ "target" : "ES2020", },\r\n}\r\n';
+    const result = mergeManagedFileContent(
+      "tsconfig.json",
+      existing,
+      '{"compilerOptions":{"strict":true}}',
+    );
+
+    expect(result?.content).toBe(existing.replace("false", "true"));
+  });
+
+  it.each([
+    "{ invalid json",
+    '{"compilerOptions": {"strict": false} "include": []}',
+    "[]",
+    "null",
+    '"config"',
+    '{"compilerOptions": "strict"}',
+    '{"compilerOptions": null}',
+    '{"compilerOptions": []}',
+    '{"compilerOptions": false}',
+    '{"compilerOptions": 1}',
+  ])(
+    "returns undefined for invalid tsconfig input on either side: %s",
+    (invalid): void => {
+      const valid = '{"compilerOptions":{"strict":true}}';
+
+      expect(mergeManagedFileContent("tsconfig.json", invalid, valid)).toBeUndefined();
+      expect(mergeManagedFileContent("tsconfig.json", valid, invalid)).toBeUndefined();
+    },
+  );
 });
 
 describe("isMergeableManagedFile", (): void => {

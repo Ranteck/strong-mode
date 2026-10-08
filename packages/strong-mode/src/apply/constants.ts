@@ -76,6 +76,31 @@ export const MANAGED_FILE_DEPENDENCIES: Readonly<Record<string, string>> = {
   "tests/env.test.ts": "src/env.ts",
 };
 
+// TypeScript's own "Type Checking" category (5.9) defines what makes the project
+// stricter. These options take the template's values; the values live there.
+export const TYPE_CHECKING_OPTIONS: readonly string[] = [
+  "strict",
+  "noImplicitAny",
+  "strictNullChecks",
+  "strictFunctionTypes",
+  "strictBindCallApply",
+  "strictPropertyInitialization",
+  "strictBuiltinIteratorReturn",
+  "noImplicitThis",
+  "useUnknownInCatchVariables",
+  "alwaysStrict",
+  "noUnusedLocals",
+  "noUnusedParameters",
+  "exactOptionalPropertyTypes",
+  "noImplicitReturns",
+  "noFallthroughCasesInSwitch",
+  "noUncheckedIndexedAccess",
+  "noImplicitOverride",
+  "noPropertyAccessFromIndexSignature",
+  "allowUnusedLabels",
+  "allowUnreachableCode",
+];
+
 // Managed tests written for Vitest. They are only added when the project's "test"
 // script clearly runs only Vitest and no OTHER_TEST_RUNNERS package is declared.
 // Another runner would collect the Vitest-only file and fail.
