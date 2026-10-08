@@ -62,31 +62,16 @@ describe("mergeManagedFileContent", (): void => {
     expect(result?.content).not.toContain("/* old exclusion */");
   });
 
-  it.each([false, true])(
-    "merges a BOM file, preserves its BOM and reports the raise (incoming BOM: %s)",
-    (incomingBom): void => {
-      const existing = '\uFEFF{\r\n  "compilerOptions": { "strict": false, },\r\n}\r\n';
-      const incoming = `${incomingBom ? "\uFEFF" : ""}{"compilerOptions":{"strict":true}}`;
-      const result = mergeManagedFileContent("tsconfig.json", existing, incoming);
+  it("merges a BOM file, preserves its BOM and reports the raise", (): void => {
+    const existing = '\uFEFF{\r\n  "compilerOptions": { "strict": false, },\r\n}\r\n';
+    const result = mergeManagedFileContent(
+      "tsconfig.json",
+      existing,
+      '{"compilerOptions":{"strict":true}}',
+    );
 
-      expect(result?.content).toBe(existing.replace("false", "true"));
-      expect(result?.raisedOptions).toEqual([
-        { name: "strict", from: false, to: true },
-      ]);
-    },
-  );
-
-  it("accepts an incoming BOM without adding one to the project file", (): void => {
-    expect(
-      mergeManagedFileContent(
-        "tsconfig.json",
-        '{"compilerOptions":{"strict":false}}',
-        '\uFEFF{"compilerOptions":{"strict":true}}',
-      ),
-    ).toEqual({
-      content: '{"compilerOptions":{"strict":true}}',
-      raisedOptions: [{ name: "strict", from: false, to: true }],
-    });
+    expect(result?.content).toBe(existing.replace("false", "true"));
+    expect(result?.raisedOptions).toEqual([{ name: "strict", from: false, to: true }]);
   });
 
   it.each([

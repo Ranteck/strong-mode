@@ -1,3 +1,5 @@
+// Since TypeScript 5.9, tsc --init sets types: [], so Node globals need an explicit reference.
+/// <reference types="node" />
 import { z } from "zod";
 
 const EnvSchema = z

@@ -1,9 +1,10 @@
 import {
   applyEdits,
+  getNodeValue,
   modify,
-  parse,
-  visit,
+  parseTree,
   type ModificationOptions,
+  type Node,
   type ParseError,
 } from "jsonc-parser";
 import { TYPE_CHECKING_OPTIONS } from "./constants.js";
@@ -70,37 +71,26 @@ const mergeJsonValues = (current: unknown, incoming: unknown): unknown => {
 
 type KeyPath = readonly string[];
 
+const hasUnsafeKeys = (node: Node): boolean => {
+  const children = node.children ?? [];
+  if (node.type === "object") {
+    const keys = children.map((property): unknown => property.children?.[0]?.value);
+    if (keys.includes("__proto__") || new Set(keys).size !== keys.length) {
+      return true;
+    }
+  }
+  return children.some(hasUnsafeKeys);
+};
+
 const parseJsoncObject = (source: string): Record<string, unknown> | undefined => {
-  const objectKeys: Set<string>[] = [];
-  const validation = { unsafeKeys: false };
-  // Validate before parse can collapse duplicate keys or assign a prototype.
-  visit(
-    source,
-    {
-      onObjectBegin: (): void => {
-        objectKeys.push(new Set<string>());
-      },
-      onObjectProperty: (key): void => {
-        const keys = objectKeys.at(-1);
-        if (key === "__proto__" || keys?.has(key)) {
-          validation.unsafeKeys = true;
-        }
-        keys?.add(key);
-      },
-      onObjectEnd: (): void => {
-        objectKeys.pop();
-      },
-    },
-    { allowTrailingComma: true },
-  );
-  if (validation.unsafeKeys) {
+  const errors: ParseError[] = [];
+  const node = parseTree(source, errors, { allowTrailingComma: true });
+  if (errors.length !== 0 || node?.type !== "object" || hasUnsafeKeys(node)) {
     return undefined;
   }
 
-  const errors: ParseError[] = [];
-  const parsed: unknown = parse(source, errors, { allowTrailingComma: true });
-
-  if (errors.length !== 0 || !isPlainObject(parsed)) {
+  const parsed: unknown = getNodeValue(node);
+  if (!isPlainObject(parsed)) {
     return undefined;
   }
 
@@ -136,18 +126,11 @@ const applyDifferences = (
   current: unknown,
   target: unknown,
   keyPath: KeyPath,
-  templateOwnedPaths: readonly KeyPath[],
 ): string => {
   if (isPlainObject(current) && isPlainObject(target)) {
     let next = text;
     for (const [key, value] of Object.entries(target)) {
-      next = applyDifferences(
-        next,
-        current[key],
-        value,
-        [...keyPath, key],
-        templateOwnedPaths,
-      );
+      next = applyDifferences(next, current[key], value, [...keyPath, key]);
     }
     return next;
   }
@@ -155,7 +138,7 @@ const applyDifferences = (
   if (
     Array.isArray(current) &&
     Array.isArray(target) &&
-    !templateOwnedPaths.some((ownedPath): boolean => isSameJson(ownedPath, keyPath))
+    isSameJson(target.slice(0, current.length), current)
   ) {
     let next = text;
     const additions: unknown[] = target.slice(current.length);
@@ -194,11 +177,8 @@ const mergeTsconfig = (
 ): MergeResult | undefined => {
   const bom = existingContent.startsWith("\uFEFF") ? "\uFEFF" : "";
   const existingText = existingContent.slice(bom.length);
-  const incomingText = incomingContent.startsWith("\uFEFF")
-    ? incomingContent.slice(1)
-    : incomingContent;
   const current = parseJsoncObject(existingText);
-  const incoming = parseJsoncObject(incomingText);
+  const incoming = parseJsoncObject(incomingContent);
 
   if (current === undefined || incoming === undefined) {
     return undefined;
@@ -218,13 +198,7 @@ const mergeTsconfig = (
     }
   }
 
-  const content = applyDifferences(
-    existingText,
-    current,
-    merged,
-    [],
-    templateOwnedPaths,
-  );
+  const content = applyDifferences(existingText, current, merged, []);
   if (!isSameJson(parseJsoncObject(content), merged)) {
     return undefined;
   }

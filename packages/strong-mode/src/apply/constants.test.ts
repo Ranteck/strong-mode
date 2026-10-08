@@ -85,6 +85,29 @@ describe("TYPE_CHECKING_OPTIONS", (): void => {
 });
 
 describe("MANAGED_TEMPLATE_FILES", (): void => {
+  it("typechecks process in the template env.ts when the project sets types to an empty array", (): void => {
+    const templateDir = resolveTemplateDir();
+    const { compilerOptions } = JSON.parse(
+      readFileSync(path.join(templateDir, "tsconfig.json"), "utf8"),
+    ) as { compilerOptions: Record<string, unknown> };
+    const { options } = ts.convertCompilerOptionsFromJson(
+      { ...compilerOptions, types: [] },
+      templateDir,
+    );
+    const envPath = path.join(templateDir, "src/env.ts");
+    const program = ts.createProgram([envPath], options);
+
+    expect(program.getSourceFile(envPath)).toBeDefined();
+    expect(
+      ts
+        .getPreEmitDiagnostics(program)
+        .filter((diagnostic) => diagnostic.code === 2591)
+        .map((diagnostic) =>
+          ts.flattenDiagnosticMessageText(diagnostic.messageText, "\n"),
+        ),
+    ).toEqual([]);
+  });
+
   it("leaves knip entry and project detection to its defaults and framework plugins", async (): Promise<void> => {
     const knipConfigModule = (await import(
       path.join(resolveTemplateDir(), "knip.config.ts")

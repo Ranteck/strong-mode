@@ -73,6 +73,65 @@ describe("executeApplyPlan", (): void => {
   });
 
   it.each([
+    { dryRun: false, verb: "wrote" },
+    { dryRun: true, verb: "would write" },
+  ])(
+    "warns once when an unsafe merge $verb conflict markers instead",
+    async ({ dryRun, verb }): Promise<void> => {
+      const tempDir = await mkdtemp(path.join(os.tmpdir(), "strong-mode-execute-"));
+      const existing = '{"compilerOptions":{"strict":true,"strict":false}}';
+      await writeFile(path.join(tempDir, "tsconfig.json"), existing);
+      const warn = vi.spyOn(log, "warn").mockImplementation((): void => undefined);
+      try {
+        const result = await executeApplyPlan(
+          {
+            ...createPlan(tempDir),
+            conflictingFiles: [
+              {
+                relativePath: "tsconfig.json",
+                sourceTemplatePath: "/template/tsconfig.json",
+                content: '{"compilerOptions":{"strict":true}}',
+                exists: true,
+              },
+            ],
+          },
+          {
+            targetDir: tempDir,
+            packageManager: "npm",
+            yes: true,
+            force: false,
+            dryRun,
+            backup: false,
+            shouldInstall: true,
+            shouldRunChecks: true,
+          },
+        );
+
+        expect(warn).toHaveBeenCalledExactlyOnceWith(
+          `tsconfig.json: could not be merged safely (invalid JSONC or tsconfig shape, a duplicate or __proto__ key, or an edit that could not be verified); ${verb} conflict markers instead.`,
+        );
+        expect(result.conflictedFiles).toEqual(["tsconfig.json"]);
+        expect(result.mergedFiles).toEqual([]);
+        expect(result.installRan).toBe(false);
+        expect(result.checksRan).toEqual([]);
+        expect(runCommandMock).not.toHaveBeenCalled();
+        expect(runPostApplyChecksMock).not.toHaveBeenCalled();
+        const written = await readFile(path.join(tempDir, "tsconfig.json"), "utf8");
+        if (dryRun) {
+          expect(written).toBe(existing);
+          expect(await readdir(tempDir)).toEqual(["tsconfig.json"]);
+        } else {
+          expect(written).toContain("<<<<<<< current project");
+          expect(written).toContain(existing);
+          expect(written).toContain(">>>>>>> strong-mode template");
+        }
+      } finally {
+        warn.mockRestore();
+      }
+    },
+  );
+
+  it.each([
     { dryRun: false, verb: "raised", strict: true, allowUnreachableCode: false },
     { dryRun: true, verb: "would raise", strict: false, allowUnreachableCode: true },
   ])(

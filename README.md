@@ -24,10 +24,11 @@ npx strong-mode
   each explicit option it raised (or would raise with `--dry-run`). Other scalars, including
   `skipLibCheck`, `verbatimModuleSyntax` and `isolatedModules`, keep the project's values;
   arrays keep the project's elements, including duplicates, and append only missing template
-  elements; the project's `extends` is preserved. In `tsconfig.eslint.json`, the template's
-  `exclude` replaces the whole array, including any comments inside it.
+  elements; the project's `extends` is preserved. In `tsconfig.eslint.json`, `exclude` takes
+  the template's value: missing entries are appended if it starts with the project's array;
+  otherwise the whole array is replaced, including any comments inside it.
 - A leading UTF-8 BOM is accepted and kept. Tsconfigs with duplicate keys in any object or
-  any key named `__proto__` get conflict markers.
+  any key named `__proto__` get conflict markers with a warning explaining the fallback.
 
 **ESLint** (`eslint.config.mjs`):
 
