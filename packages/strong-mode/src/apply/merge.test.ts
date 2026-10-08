@@ -62,6 +62,20 @@ describe("mergeManagedFileContent", (): void => {
     expect(result?.content).not.toContain("/* old exclusion */");
   });
 
+  it("appends to a template-owned exclude array whose project value is a prefix, keeping its comment", (): void => {
+    const result = mergeManagedFileContent(
+      "tsconfig.eslint.json",
+      '{"exclude":[/* dependency files */ "node_modules",]}',
+      '{"exclude":["node_modules", "dist", "coverage"]}',
+    );
+
+    expect(result?.content).toContain("/* dependency files */");
+    expect(jsonc.parse(result?.content ?? "{}")).toEqual({
+      exclude: ["node_modules", "dist", "coverage"],
+    });
+    expect(result?.raisedOptions).toEqual([]);
+  });
+
   it("merges a BOM file, preserves its BOM and reports the raise", (): void => {
     const existing = '\uFEFF{\r\n  "compilerOptions": { "strict": false, },\r\n}\r\n';
     const result = mergeManagedFileContent(

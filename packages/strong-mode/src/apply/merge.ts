@@ -142,7 +142,8 @@ const applyDifferences = (
   ) {
     let next = text;
     const additions: unknown[] = target.slice(current.length);
-    // Unioned arrays keep the project's prefix, including duplicates and comments.
+    // Appending preserves comments whenever the target keeps the project's prefix,
+    // including a template-owned array that only adds entries.
     for (const value of additions) {
       next = applyEdits(
         next,

@@ -73,11 +73,13 @@ describe("executeApplyPlan", (): void => {
   });
 
   it.each([
-    { dryRun: false, verb: "wrote" },
-    { dryRun: true, verb: "would write" },
+    { dryRun: false, backup: false, verb: "wrote" },
+    { dryRun: true, backup: false, verb: "would write" },
+    { dryRun: false, backup: true, verb: "wrote" },
+    { dryRun: true, backup: true, verb: "would write" },
   ])(
     "warns once when an unsafe merge $verb conflict markers instead",
-    async ({ dryRun, verb }): Promise<void> => {
+    async ({ dryRun, backup, verb }): Promise<void> => {
       const tempDir = await mkdtemp(path.join(os.tmpdir(), "strong-mode-execute-"));
       const existing = '{"compilerOptions":{"strict":true,"strict":false}}';
       await writeFile(path.join(tempDir, "tsconfig.json"), existing);
@@ -101,7 +103,7 @@ describe("executeApplyPlan", (): void => {
             yes: true,
             force: false,
             dryRun,
-            backup: false,
+            backup,
             shouldInstall: true,
             shouldRunChecks: true,
           },
@@ -124,6 +126,15 @@ describe("executeApplyPlan", (): void => {
           expect(written).toContain("<<<<<<< current project");
           expect(written).toContain(existing);
           expect(written).toContain(">>>>>>> strong-mode template");
+          const backups = (await readdir(tempDir)).filter((file) =>
+            file.startsWith("tsconfig.json.strong-mode-backup."),
+          );
+          expect(backups).toHaveLength(backup ? 1 : 0);
+          if (backup) {
+            expect(await readFile(path.join(tempDir, backups[0] ?? ""), "utf8")).toBe(
+              existing,
+            );
+          }
         }
       } finally {
         warn.mockRestore();

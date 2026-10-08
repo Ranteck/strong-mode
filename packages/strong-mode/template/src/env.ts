@@ -1,6 +1,10 @@
-// Since TypeScript 5.9, tsc --init sets types: [], so Node globals need an explicit reference.
-/// <reference types="node" />
 import { z } from "zod";
+
+// Typed here instead of through @types/node: a project may limit `types` (tsc --init sets
+// "types": []), and Node globals must not leak into its other files.
+declare const process: {
+  readonly env: Readonly<Record<string, string | undefined>>;
+};
 
 const EnvSchema = z
   .object({

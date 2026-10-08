@@ -189,7 +189,7 @@ const applyConflictingFile = async (
     return;
   }
 
-  const decision = await promptFileConflictResolution(
+  let decision = await promptFileConflictResolution(
     managedFile.relativePath,
     existing,
     managedFile.content,
@@ -210,21 +210,7 @@ const applyConflictingFile = async (
     ? mergeManagedFileContent(managedFile.relativePath, existing, managedFile.content)
     : undefined;
   if (shouldMerge && merge === undefined) {
-    if (options.backup && !options.dryRun) {
-      await backupFile(targetPath);
-    }
-
-    await writeManagedFile(
-      options.targetDir,
-      managedFile.relativePath,
-      buildConflictFileContent(existing, managedFile.content),
-      options.dryRun,
-    );
-    results.conflictedFiles.push(managedFile.relativePath);
-    log.warn(
-      `${managedFile.relativePath}: could not be merged safely (invalid JSONC or tsconfig shape, a duplicate or __proto__ key, or an edit that could not be verified); ${options.dryRun ? "would write" : "wrote"} conflict markers instead.`,
-    );
-    return;
+    decision = "conflict";
   }
 
   const nextContent =
@@ -252,6 +238,11 @@ const applyConflictingFile = async (
 
   if (decision === "conflict") {
     results.conflictedFiles.push(managedFile.relativePath);
+    if (shouldMerge) {
+      log.warn(
+        `${managedFile.relativePath}: could not be merged safely (invalid JSONC or tsconfig shape, a duplicate or __proto__ key, or an edit that could not be verified); ${options.dryRun ? "would write" : "wrote"} conflict markers instead.`,
+      );
+    }
   } else if (merge !== undefined) {
     results.mergedFiles.push(managedFile.relativePath);
     warnRaisedOptions(managedFile.relativePath, merge.raisedOptions, options.dryRun);

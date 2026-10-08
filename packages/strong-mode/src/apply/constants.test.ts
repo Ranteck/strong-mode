@@ -1,5 +1,5 @@
 import { readFileSync } from "node:fs";
-import { mkdir, mkdtemp, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, rm, symlink, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import semver from "semver";
@@ -85,28 +85,61 @@ describe("TYPE_CHECKING_OPTIONS", (): void => {
 });
 
 describe("MANAGED_TEMPLATE_FILES", (): void => {
-  it("typechecks process in the template env.ts when the project sets types to an empty array", (): void => {
+  it("typechecks template env.ts without leaking Node globals into a DOM project with types: []", async (): Promise<void> => {
     const templateDir = resolveTemplateDir();
     const { compilerOptions } = JSON.parse(
       readFileSync(path.join(templateDir, "tsconfig.json"), "utf8"),
     ) as { compilerOptions: Record<string, unknown> };
-    const { options } = ts.convertCompilerOptionsFromJson(
-      { ...compilerOptions, types: [] },
-      templateDir,
-    );
-    const envPath = path.join(templateDir, "src/env.ts");
-    const program = ts.createProgram([envPath], options);
+    const projectDir = await mkdtemp(path.join(os.tmpdir(), "strong-mode-env-"));
+    try {
+      await mkdir(path.join(projectDir, "src"));
+      await writeFile(path.join(projectDir, "package.json"), '{"type":"module"}');
+      await symlink(
+        path.resolve(templateDir, "../../../node_modules"),
+        path.join(projectDir, "node_modules"),
+        "dir",
+      );
+      const envPath = path.join(projectDir, "src/env.ts");
+      const timerPath = path.join(projectDir, "src/timer.ts");
+      await writeFile(
+        envPath,
+        readFileSync(path.join(templateDir, "src/env.ts"), "utf8"),
+      );
+      await writeFile(
+        timerPath,
+        "export const timer: number = setTimeout(() => undefined, 1);\n",
+      );
+      const { options, errors } = ts.convertCompilerOptionsFromJson(
+        { ...compilerOptions, types: [], lib: ["ES2024", "DOM"] },
+        projectDir,
+      );
+      const program = ts.createProgram([envPath, timerPath], options);
 
-    expect(program.getSourceFile(envPath)).toBeDefined();
-    expect(
-      ts
-        .getPreEmitDiagnostics(program)
-        .filter((diagnostic) => diagnostic.code === 2591)
-        .map((diagnostic) =>
-          ts.flattenDiagnosticMessageText(diagnostic.messageText, "\n"),
-        ),
-    ).toEqual([]);
+      expect(errors).toEqual([]);
+      expect(program.getSourceFile(envPath)).toBeDefined();
+      expect(program.getSourceFile(timerPath)).toBeDefined();
+      expect(
+        ts
+          .getPreEmitDiagnostics(program)
+          .map((diagnostic) =>
+            ts.flattenDiagnosticMessageText(diagnostic.messageText, "\n"),
+          ),
+      ).toEqual([]);
+    } finally {
+      await rm(projectDir, { recursive: true, force: true });
+    }
   });
+
+  it.each(["tsconfig.json", "tsconfig.eslint.json"])(
+    "bundles %s without a leading UTF-8 BOM",
+    (file): void => {
+      expect(
+        readFileSync(path.join(resolveTemplateDir(), file), "utf8").startsWith(
+          "\uFEFF",
+        ),
+      ).toBe(false);
+    },
+  );
 
   it("leaves knip entry and project detection to its defaults and framework plugins", async (): Promise<void> => {
     const knipConfigModule = (await import(
