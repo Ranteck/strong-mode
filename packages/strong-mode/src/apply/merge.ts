@@ -2,6 +2,7 @@ import {
   applyEdits,
   modify,
   parse,
+  visit,
   type ModificationOptions,
   type ParseError,
 } from "jsonc-parser";
@@ -27,10 +28,10 @@ const mergeArrayValues = (
   current: readonly unknown[],
   incoming: readonly unknown[],
 ): unknown[] => {
-  const seen = new Set<string>();
-  const merged: unknown[] = [];
+  const seen = new Set(current.map((value): string => JSON.stringify(value)));
+  const merged = current.map((value): unknown => cloneJsonValue(value));
 
-  for (const value of [...current, ...incoming]) {
+  for (const value of incoming) {
     const key = JSON.stringify(value);
     if (seen.has(key)) {
       continue;
@@ -70,6 +71,32 @@ const mergeJsonValues = (current: unknown, incoming: unknown): unknown => {
 type KeyPath = readonly string[];
 
 const parseJsoncObject = (source: string): Record<string, unknown> | undefined => {
+  const objectKeys: Set<string>[] = [];
+  const validation = { unsafeKeys: false };
+  // Validate before parse can collapse duplicate keys or assign a prototype.
+  visit(
+    source,
+    {
+      onObjectBegin: (): void => {
+        objectKeys.push(new Set<string>());
+      },
+      onObjectProperty: (key): void => {
+        const keys = objectKeys.at(-1);
+        if (key === "__proto__" || keys?.has(key)) {
+          validation.unsafeKeys = true;
+        }
+        keys?.add(key);
+      },
+      onObjectEnd: (): void => {
+        objectKeys.pop();
+      },
+    },
+    { allowTrailingComma: true },
+  );
+  if (validation.unsafeKeys) {
+    return undefined;
+  }
+
   const errors: ParseError[] = [];
   const parsed: unknown = parse(source, errors, { allowTrailingComma: true });
 
@@ -109,11 +136,38 @@ const applyDifferences = (
   current: unknown,
   target: unknown,
   keyPath: KeyPath,
+  templateOwnedPaths: readonly KeyPath[],
 ): string => {
   if (isPlainObject(current) && isPlainObject(target)) {
     let next = text;
     for (const [key, value] of Object.entries(target)) {
-      next = applyDifferences(next, current[key], value, [...keyPath, key]);
+      next = applyDifferences(
+        next,
+        current[key],
+        value,
+        [...keyPath, key],
+        templateOwnedPaths,
+      );
+    }
+    return next;
+  }
+
+  if (
+    Array.isArray(current) &&
+    Array.isArray(target) &&
+    !templateOwnedPaths.some((ownedPath): boolean => isSameJson(ownedPath, keyPath))
+  ) {
+    let next = text;
+    const additions: unknown[] = target.slice(current.length);
+    // Unioned arrays keep the project's prefix, including duplicates and comments.
+    for (const value of additions) {
+      next = applyEdits(
+        next,
+        modify(next, [...keyPath, -1], value, {
+          ...MODIFY_OPTIONS,
+          isArrayInsertion: true,
+        }),
+      );
     }
     return next;
   }
@@ -138,8 +192,13 @@ const mergeTsconfig = (
   incomingContent: string,
   templateOwnedPaths: readonly KeyPath[] = [],
 ): MergeResult | undefined => {
-  const current = parseJsoncObject(existingContent);
-  const incoming = parseJsoncObject(incomingContent);
+  const bom = existingContent.startsWith("\uFEFF") ? "\uFEFF" : "";
+  const existingText = existingContent.slice(bom.length);
+  const incomingText = incomingContent.startsWith("\uFEFF")
+    ? incomingContent.slice(1)
+    : incomingContent;
+  const current = parseJsoncObject(existingText);
+  const incoming = parseJsoncObject(incomingText);
 
   if (current === undefined || incoming === undefined) {
     return undefined;
@@ -159,8 +218,19 @@ const mergeTsconfig = (
     }
   }
 
+  const content = applyDifferences(
+    existingText,
+    current,
+    merged,
+    [],
+    templateOwnedPaths,
+  );
+  if (!isSameJson(parseJsoncObject(content), merged)) {
+    return undefined;
+  }
+
   return {
-    content: applyDifferences(existingContent, current, merged, []),
+    content: bom + content,
     raisedOptions: raisedTypeCheckingOptions(current, merged),
   };
 };

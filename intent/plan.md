@@ -13,7 +13,7 @@ Los de cada paso del orden de trabajo. Las features grandes nuevas abren su prop
 - Limpieza: se borraron las ramas mergeadas y los worktrees de #9 y #10.
 - PR #11 mergeado (`4bf05ec`): la cadena `intent/` del AI-Native SDLC.
 - Dependencias: se cerraron las 17 alertas de Dependabot, todas de desarrollo. `npm audit fix` sin `--force` y Vitest a `^4.1.11` (GHSA-82fw) dejan `npm audit` en 0.
-- `tsconfig-estricto`, tareas 1–4 implementadas en `feat/strict-tsconfig-merge` (sin commit ni PR todavía): las 20 opciones de Type Checking toman los valores del template; el merge lee JSONC, edita en el lugar y avisa las opciones explícitas cambiadas, también en dry-run. Tests unitarios verifican el comportamiento; T7 y la matriz de gestores quedan pendientes. Ver [plan de la feature](tsconfig-estricto/plan.md).
+- `tsconfig-estricto`, tareas 1–4 implementadas en `feat/strict-tsconfig-merge`, con commits locales de checkpoint (`4fc9ab0` es el checkpoint IMPL), sin PR todavía: las 20 opciones de Type Checking toman los valores del template; el merge lee JSONC, edita en el lugar y avisa las opciones explícitas cambiadas, también en dry-run. Tests unitarios verifican el comportamiento; T7 y la matriz de gestores quedan pendientes. Ver [plan de la feature](tsconfig-estricto/plan.md).
 
 ## Orden de trabajo
 

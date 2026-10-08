@@ -1,7 +1,132 @@
-import { describe, expect, it } from "vitest";
+import * as jsonc from "jsonc-parser";
+import { describe, expect, it, vi } from "vitest";
 import { isMergeableManagedFile, mergeManagedFileContent } from "./merge.js";
 
 describe("mergeManagedFileContent", (): void => {
+  it("appends missing include entries while keeping array comments and a trailing comma", (): void => {
+    const existing = [
+      "{",
+      '  "include": [',
+      '    "src", // project sources',
+      '    "test",',
+      "  ],",
+      "}",
+      "",
+    ].join("\r\n");
+    const result = mergeManagedFileContent(
+      "tsconfig.json",
+      existing,
+      '{"include":["src", "src/**/*", "tests/**/*"]}',
+    );
+    const content = result?.content ?? "";
+
+    expect(content).toContain('"src", // project sources');
+    expect(content).toContain('"tests/**/*",\r\n  ]');
+    expect(content.replaceAll("\r\n", "")).not.toContain("\n");
+    expect(jsonc.parse(content)).toEqual({
+      include: ["src", "test", "src/**/*", "tests/**/*"],
+    });
+    expect(result?.raisedOptions).toEqual([]);
+  });
+
+  it("keeps duplicate project array elements and appends each missing template element once", (): void => {
+    const result = mergeManagedFileContent(
+      "tsconfig.json",
+      '{"include":["src", "src"]}',
+      '{"include":["src", "tests", "tests"]}',
+    );
+
+    expect(jsonc.parse(result?.content ?? "{}")).toEqual({
+      include: ["src", "src", "tests"],
+    });
+  });
+
+  it("keeps an unchanged array with duplicate elements byte-for-byte", (): void => {
+    const existing = '{"include":["src", /* intentional repeat */ "src",]}';
+
+    expect(
+      mergeManagedFileContent("tsconfig.json", existing, '{"include":["src"]}'),
+    ).toEqual({ content: existing, raisedOptions: [] });
+  });
+
+  it("replaces the template-owned exclude array including comments inside it", (): void => {
+    const result = mergeManagedFileContent(
+      "tsconfig.eslint.json",
+      '{"exclude":["tests", /* old exclusion */ "tests",]}',
+      '{"exclude":["node_modules"]}',
+    );
+
+    expect(jsonc.parse(result?.content ?? "{}")).toEqual({
+      exclude: ["node_modules"],
+    });
+    expect(result?.content).not.toContain("/* old exclusion */");
+  });
+
+  it.each([false, true])(
+    "merges a BOM file, preserves its BOM and reports the raise (incoming BOM: %s)",
+    (incomingBom): void => {
+      const existing = '\uFEFF{\r\n  "compilerOptions": { "strict": false, },\r\n}\r\n';
+      const incoming = `${incomingBom ? "\uFEFF" : ""}{"compilerOptions":{"strict":true}}`;
+      const result = mergeManagedFileContent("tsconfig.json", existing, incoming);
+
+      expect(result?.content).toBe(existing.replace("false", "true"));
+      expect(result?.raisedOptions).toEqual([
+        { name: "strict", from: false, to: true },
+      ]);
+    },
+  );
+
+  it("accepts an incoming BOM without adding one to the project file", (): void => {
+    expect(
+      mergeManagedFileContent(
+        "tsconfig.json",
+        '{"compilerOptions":{"strict":false}}',
+        '\uFEFF{"compilerOptions":{"strict":true}}',
+      ),
+    ).toEqual({
+      content: '{"compilerOptions":{"strict":true}}',
+      raisedOptions: [{ name: "strict", from: false, to: true }],
+    });
+  });
+
+  it.each([
+    '{"compilerOptions":{"strict":false,"strict":false}}',
+    '{"compilerOptions":{"strict":true},"compilerOptions":{"strict":false}}',
+    '{"compilerOptions":null,"compilerOptions":{"strict":false}}',
+    '{"compilerOptions":[],"compilerOptions":{"strict":false}}',
+    '{"custom":{"nested":{"value":1,"value":2}}}',
+    '{"custom":[{"value":1,"value":2}]}',
+    '{"compilerOptions":{"str\\u0069ct":false,"strict":false}}',
+    '{"__proto__":{"compilerOptions":{"strict":false}}}',
+    '{"compilerOptions":{"__proto__":{"strict":false}}}',
+    '{"custom":[{"__proto__":null}]}',
+  ])(
+    "returns undefined without throwing for unsafe object keys on either side: %s",
+    (invalid): void => {
+      const valid = '{"compilerOptions":{"strict":true}}';
+
+      for (const relativePath of ["tsconfig.json", "tsconfig.eslint.json"]) {
+        expect(mergeManagedFileContent(relativePath, invalid, valid)).toBeUndefined();
+        expect(mergeManagedFileContent(relativePath, valid, invalid)).toBeUndefined();
+      }
+    },
+  );
+
+  it("returns undefined when the written content does not match the computed merge", (): void => {
+    const modify = vi.spyOn(jsonc, "modify").mockReturnValue([]);
+    try {
+      expect(
+        mergeManagedFileContent(
+          "tsconfig.json",
+          '{"compilerOptions":{"strict":false}}',
+          '{"compilerOptions":{"strict":true}}',
+        ),
+      ).toBeUndefined();
+    } finally {
+      modify.mockRestore();
+    }
+  });
+
   it("merges tsconfig.eslint.json like tsconfig.json", (): void => {
     expect(isMergeableManagedFile("tsconfig.eslint.json")).toBe(true);
 

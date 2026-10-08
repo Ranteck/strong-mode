@@ -2,14 +2,6 @@
 
 Estado: aceptado
 
-Ejecución: tareas 1–4 implementadas localmente en `feat/strict-tsconfig-merge`, sin
-commits ni PR. La tarea 5 (T7, matriz de gestores y entrega) sigue pendiente.
-
-Adaptaciones al plan: se valida `compilerOptions` en ambos archivos de entrada; C10
-se registra como resuelto en esta rama, pendiente de merge a `main`. El formato se
-verifica solo en los archivos de esta feature para respetar los archivos excluidos
-por el usuario. La dependencia se instaló offline desde el cache autorizado.
-
 > **Para quien ejecute:** se implementa con `/graph-engineer` (Codex escribe y critica,
 > Claude arbitra), tarea por tarea, en el worktree `~/Proyectos/strong-mode-tsconfig`
 > (rama `feat/strict-tsconfig-merge`). Los pasos usan casillas (`- [ ]`).
@@ -548,13 +540,13 @@ Después, `npm run sync:template`.
       raised option is warned)".
 - [x] **Paso 3: `intent/spec.md`.**
   - R2 pasa a `verificado`, con "Cómo se cumple hoy" actualizado.
-  - C10 queda "Resuelto en la rama `feat/strict-tsconfig-merge`, pendiente de merge a `main`" y suma C14 y C15, con el texto de los concerns CF2 y CF3
+  - C10 queda "Resuelto en `main`" y suma C14 y C15, con el texto de los concerns CF2 y CF3
     de [spec.md](spec.md).
 - [x] **Paso 4: `intent/plan.md`.**
-  - "Hecho" suma esta implementación local, sin afirmar un PR o merge todavía.
+  - "Hecho" suma este PR.
   - C10 sale del orden de trabajo.
-  - C14 entra junto con los gates y C15 junto con C11.
-- [x] **Paso 5:** Prettier con `--check` sobre los archivos de esta feature; que los links de `intent/` resuelvan.
+  - C14 entra junto con los gates (paso 4) y C15 junto con C11.
+- [x] **Paso 5:** `npm run format:check`; que los links de `intent/` resuelvan.
 - [ ] **Paso 6: commit** `docs: document the strict tsconfig merge`.
 
 ### Tarea 5: verificación de punta a punta (T7) y entrega

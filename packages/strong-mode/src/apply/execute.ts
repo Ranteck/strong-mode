@@ -205,18 +205,17 @@ const applyConflictingFile = async (
     return;
   }
 
-  const merge =
-    decision === "merge"
-      ? mergeManagedFileContent(managedFile.relativePath, existing, managedFile.content)
-      : undefined;
-  const nextContent =
-    decision === "merge"
-      ? merge?.content
-      : decision === "conflict"
-        ? buildConflictFileContent(existing, managedFile.content)
-        : managedFile.content;
+  const shouldMerge = decision === "merge";
+  const merge = shouldMerge
+    ? mergeManagedFileContent(managedFile.relativePath, existing, managedFile.content)
+    : undefined;
+  const nextContent = shouldMerge
+    ? merge?.content
+    : decision === "conflict"
+      ? buildConflictFileContent(existing, managedFile.content)
+      : managedFile.content;
 
-  if (decision === "merge" && nextContent === undefined) {
+  if (shouldMerge && merge === undefined) {
     if (options.backup && !options.dryRun) {
       await backupFile(targetPath);
     }
@@ -255,13 +254,9 @@ const applyConflictingFile = async (
 
   if (decision === "conflict") {
     results.conflictedFiles.push(managedFile.relativePath);
-  } else if (decision === "merge") {
+  } else if (merge !== undefined) {
     results.mergedFiles.push(managedFile.relativePath);
-    warnRaisedOptions(
-      managedFile.relativePath,
-      merge?.raisedOptions ?? [],
-      options.dryRun,
-    );
+    warnRaisedOptions(managedFile.relativePath, merge.raisedOptions, options.dryRun);
   } else {
     results.overwrittenFiles.push(managedFile.relativePath);
     results.templateFiles.add(managedFile.relativePath);
