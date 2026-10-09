@@ -4,7 +4,7 @@
 
 strong-mode makes any TypeScript project stricter, the way `"strict": true` makes the type checker stricter, but across the whole project: types, lint, dead code, duplication, reuse, architecture and supply chain. It composes proven tools instead of reinventing them, installs with one command (`npx strong-mode`), and works for any TypeScript project, framework and package manager. Its own helpers stay small and deny-by-default.
 
-Before planning a change, read the AI-Native SDLC chain in `intent/`: `intent.md` (problem, expected outcome, constraints, out of scope; the north star), `spec.md` (requirements `REQ-n` traced to the intent, their scenarios, and the concerns waiting for the owner) and `plan.md` (each requirement's test and status, work order, risks, how to test). A change that falls outside `intent.md` or changes its concept stops until the owner approves an amendment in its `## Cambios` section.
+Before planning a change, read the AI-Native SDLC chain in `intent/`: `intent.md` (problem, expected outcome, constraints, out of scope; the north star), `spec.md` (requirements `REQ-n` traced to the intent, their scenarios, and the concerns waiting for the owner) and `plan.md` (each requirement's test and status, work order, risks, how to test). A change that falls outside `intent.md` or changes its concept stops until the owner approves an amendment in its `## Cambios` section. The repo's working process (graph-engineer cycles, the altitude rule, reviews, `/pre-push`, `/e2e-pm-matrix`) is in the "Working process" section of `CLAUDE.md`; read and follow it too.
 
 ## Project Structure & Module Organization
 

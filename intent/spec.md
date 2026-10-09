@@ -21,8 +21,7 @@ Estado: aceptado
   "entradas externas sin validar".
 - REQ-8 MUST: después de aplicar, el proyecto pasa sus propios gates. Origen: Resultado
   esperado, "desde el primer día".
-- REQ-9 MUST: funciona con cualquier framework y con npm, pnpm, Yarn y bun. Origen: Usuarios;
-  Restricciones, "cualquier proyecto de TypeScript".
+- REQ-9 MUST: funciona con cualquier framework y con npm, pnpm, Yarn y bun. Origen: Usuarios y Restricciones.
 - REQ-10 MUST: conserva los campos y scripts del usuario; lo que no puede combinar queda con
   backup o conflicto marcado. Origen: Restricciones, "no pisar el trabajo del usuario".
 - REQ-11 MUST: ante lo que no reconoce, hace lo conservador y explica por qué. Origen: Fuera
@@ -82,13 +81,13 @@ Estado: aceptado
 
 Esperan una decisión del dueño; los huecos están en [plan.md](plan.md).
 
-- **CommonJS.** Hoy se rechaza antes de escribir. ¿Soportarlo es parte de la intención?
+- **CommonJS.** Un `"type": "commonjs"` declarado se rechaza; sin `type`, el proyecto pasa a
+  ESM y sus `.js` CommonJS se rompen. ¿Soportarlo es parte de la intención?
   (REQ-9).
 - **Duplicación entre archivos y reutilización.** Falta elegir herramientas. Si no existe
   una para reutilización, REQ-5 exige construir algo propio, que la intención descarta.
-- **`noCheck: true`.** Apaga el chequeo de tipos aunque las opciones de REQ-2 estén puestas.
+- **`noCheck: true`.** Apaga el chequeo de tipos aunque REQ-2 se cumpla.
   ¿strong-mode lo fuerza a `false`?
-- **Otros runners de tests.** Con Jest, la cobertura de strong-mode igual corre Vitest. ¿Se
+- **Otros runners de tests.** Con Jest, la cobertura igual corre Vitest. ¿Se
   adaptan los gates al runner o se exige Vitest? (REQ-6, REQ-8).
-- **Formato de lo que strong-mode combina.** Puede no pasar el chequeo de formato del
-  proyecto. ¿strong-mode lo formatea después de escribir? (REQ-8).
+- **Formato de lo que strong-mode combina.** Puede no pasar el chequeo de formato. ¿strong-mode lo formatea? (REQ-8).

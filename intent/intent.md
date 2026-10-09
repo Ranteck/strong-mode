@@ -48,11 +48,12 @@ herramientas.
 - Duplicación entre archivos: ¿qué herramienta (por ejemplo, jscpd)? sonarjs solo la ve
   dentro de un archivo.
 - Reutilización: ¿hay una herramienta que detecte funcionalidad reimplementada?
-- CommonJS: hoy se rechaza (el template es solo ESM). ¿Soportarlo es parte de la intención?
+- CommonJS: el template es solo ESM; hoy se rechaza si se declara, y un proyecto sin `type`
+  se convierte a ESM. ¿Soportarlo es parte de la intención?
 
 ## Cambios
 
-- 2026-10-07: suma los gates del prompt fundacional, corrige la pregunta sobre CommonJS y
-  agrega la excepción de las opciones de chequeo de `tsconfig.json` (C10). Aprobado por el
-  usuario.
-- 2026-10-08: condensado al formato del SDLC, sin cambiar la intención. Aprobado por el usuario.
+- 2026-10-07: gates del prompt fundacional, pregunta sobre CommonJS corregida y excepción de
+  `tsconfig.json` (C10). Aprobado por el usuario.
+- 2026-10-08: formato del SDLC, sin cambiar la intención; CommonJS distingue los proyectos sin
+  `type`. Aprobado por el usuario.

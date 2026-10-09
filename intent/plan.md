@@ -60,7 +60,8 @@ ejercite.
    sumar al CI un proyecto que tiene que fallar.
 6. **Código propio (REQ-13):** el CI corre `quality` sobre strong-mode; las regex de configs
    de ESLint en `execute.ts` no coinciden con el resolver de scripts.
-7. **CommonJS:** decisión del dueño.
+7. **CommonJS:** decisión del dueño, que incluye a los proyectos sin `type`, hoy convertidos
+   a ESM.
 
 ## Riesgos
 
