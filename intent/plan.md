@@ -26,8 +26,8 @@ ejercite.
 | CI: complejidad, dependency-cruiser, madge y audit fallan ante un proyecto que los viola         | REQ-6        | parcial: solo la cobertura mínima corre, dentro del apply                        |
 | El `tests/env.test.ts` del template valida el entorno con Zod                                    | REQ-7        | parcial: solo variables de entorno                                               |
 | `/e2e-pm-matrix` con npm 10 y 11, pnpm, Yarn 1 y bun                                             | REQ-9        | parcial: es manual, y en Yarn 1 y bun el lint con tipos se cae                   |
-| `patchers.test.ts` y `merge.test.ts`: el merge conserva campos y scripts                         | REQ-10       | parcial: el `engines` del template pisa el del usuario                           |
-| `scripts.test.ts`, `module-system.test.ts` y el CI de CommonJS: rechazo explicado                | REQ-11       | cubre                                                                            |
+| `patchers.test.ts` y `merge.test.ts`: el merge conserva campos y scripts                         | REQ-10       | parcial: el `engines` del template pisa el del usuario y el backup es opcional   |
+| `scripts.test.ts`, `module-system.test.ts` y el CI de CommonJS: rechazo explicado                | REQ-11       | cubre; falta un test del aviso de que apply ya escribió cambios                  |
 | Revisión de altitud en cada ciclo: ningún helper propio emula a una herramienta                  | REQ-12       | sin test automático                                                              |
 | CI del repo: `check` y `dead-code` del CLI                                                       | REQ-13       | parcial: no corre `quality` sobre sí mismo                                       |
 
@@ -53,7 +53,7 @@ ejercite.
 4. **Gates y preservación (REQ-6, REQ-8, REQ-10):**
    - `check`, `quality` y `audit` llaman a `npm`, y `audit` exige `package-lock.json`;
    - el pre-commit no corre `dead-code` y nada fuerza `quality`;
-   - el `engines` del template pisa el del usuario;
+   - el `engines` del template pisa el del usuario, y el backup solo se hace con `--backup`;
    - el formato de lo que se combina, según la decisión del concern;
    - el CI no ejercita dependency-cruiser, madge ni audit.
 5. **Escapes del tipado (REQ-3):** un `as` simple pasa y los tests relajan `no-explicit-any`;
