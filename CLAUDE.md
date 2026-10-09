@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Read first
 
-The project's AI-Native SDLC chain. `intent/intent.md` is the north star: compare every plan or change against it, and amend it only with the owner's approval, through its `## Cambios` section. `intent/spec.md` traces each requirement to the intent and records its current status; `intent/plan.md` holds the work order. Update the spec's statuses and the plan when a PR or cycle ends.
+The project's AI-Native SDLC chain. `intent/intent.md` is the north star: compare every plan or change against it, and amend it only with the owner's approval, through its `## Cambios` section. `intent/spec.md` lists the requirements (`REQ-n`, MUST/SHOULD/MAY) traced to the intent, with their scenarios and the concerns waiting for the owner's decision; `intent/plan.md` holds each requirement's test and current status, and the work order. When a PR or cycle ends, update the plan's statuses and work order.
 
 - @intent/intent.md
 - @intent/spec.md
@@ -133,6 +133,13 @@ Generated projects enforce extreme type safety:
 - If you changed `packages/strong-mode/src/` or the template: `npm run build -w strong-mode && node packages/strong-mode/dist/cli.js --dry-run --yes`.
 - If you changed `packages/scaffold-ultra/template/`: run `npm run sync:template` and commit `packages/strong-mode/template/` too (it is tracked in git).
 - Commits use Conventional Commits (`feat:`, `fix:`, `chore:`). Keep generated-project rules in the template, not in CLI logic. PR requirements live in `AGENTS.md`.
+
+## Working process
+
+- Non-trivial changes go through `/graph-engineer`: Codex writes and critiques, Claude arbitrates. The cycle's contract lives in `PROJECT_CONTEXT.md` and is archived in `PROJECT_CONTEXT.archive/` when the cycle ends.
+- Altitude rule: if two review passes bring variants of the same class, run a multi-lens sweep and reformulate the contract instead of patching round by round. If a peripheral helper grows, shrink it: the Vitest detection went from a 608-line shell emulator to a closed whitelist of about 100 lines (`PROJECT_CONTEXT.archive/vitest-command-detection.md`). If advice to the user keeps coming out wrong, remove it.
+- Run `/code-review` in parallel with each Codex CRITIQUE; run `/pre-push` (Definition of Done, template sync, Codex review) before every push; run `/e2e-pm-matrix` when `src/apply`, `package-manager.ts`, `process.ts` or the template change.
+- A large feature gets its own `intent/<slug>/` with intent, spec and plan, each approved by the owner before the next one is written.
 
 ## Important Constraints
 
