@@ -50,7 +50,7 @@ rather than lowering the options.`
 | `packages/strong-mode/src/apply/execute.ts`              | usar `MergeResult` y avisar las opciones subidas                      |
 | `packages/strong-mode/src/apply/execute.test.ts`         | el aviso y su variante con `--dry-run`                                |
 | `README.md` (+sync), `CLAUDE.md`                         | comportamiento nuevo del merge                                        |
-| `intent/spec.md`, `intent/plan.md`                       | R2, C10, C14 y C15; el orden de trabajo                               |
+| `intent/plan.md`                                         | la fila de REQ-2 y el paso 1 del orden de trabajo                     |
 
 ## Orden de trabajo
 
@@ -538,14 +538,10 @@ Después, `npm run sync:template`.
       "(tsconfig files are read as JSONC with `jsonc-parser` and edited in place; in
       `tsconfig.json` the `TYPE_CHECKING_OPTIONS` always take the template's value and each
       raised option is warned)".
-- [x] **Paso 3: `intent/spec.md`.**
-  - R2 pasa a `verificado`, con "Cómo se cumple hoy" actualizado.
-  - C10 queda "Resuelto en `main`" y suma C14 y C15, con el texto de los concerns CF2 y CF3
-    de [spec.md](spec.md).
-- [x] **Paso 4: `intent/plan.md`.**
-  - "Hecho" suma este PR.
-  - C10 sale del orden de trabajo.
-  - C14 entra junto con los gates (paso 4) y C15 junto con C11.
+- [ ] **Paso 3: `intent/plan.md` raíz.** Al cerrar la feature, la fila de REQ-2 pasa a
+      "cubre" y el paso 1 del orden de trabajo sale.
+- [ ] **Paso 4: `intent/spec.md` raíz.** El concern de `noCheck` sigue abierto hasta que
+      decida el dueño; nada más cambia ahí.
 - [x] **Paso 5:** `npm run format:check`; que los links de `intent/` resuelvan.
 - [ ] **Paso 6: commit** `docs: document the strict tsconfig merge`.
 

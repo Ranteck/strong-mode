@@ -66,10 +66,10 @@ cubren.
   posterior, y apply termina con error. Es lo esperado (decidido el 2026-10-07): el aviso de
   T6 lo explica antes.
 - **CF2.** Lo que `modify` inserta, como los arrays, sale en varias líneas, y Prettier los
-  quiere en una. Ya pasa en `main` con `JSON.stringify` (C14 del spec raíz).
+  quiere en una. Ya pasa en `main` con `JSON.stringify` (concern de formato del spec raíz).
 - **CF3.** Un `tsconfig.eslint.json` propio con opciones laxas, y los tsconfig
   _solution-style_ (Vite: `files: []` con `references`), donde el rigor del raíz no llega a
-  `tsconfig.app.json` (C15 del spec raíz, junto con C11).
+  `tsconfig.app.json` (paso 3 del plan raíz).
 - **CF4.** El build ESM de `jsonc-parser` usa imports sin extensión y Node no lo carga.
   Node usa la entrada CommonJS (`main`), y un import con nombre funcionó en la prueba. Hay
   que verificarlo con el build de tsup y el dry-run.

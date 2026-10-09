@@ -1,4 +1,4 @@
-# Intención: tsconfig estricto al aplicar (C10)
+# Intención: tsconfig estricto al aplicar (REQ-2)
 
 Autor: Denis Hugo Perafan · Estado: aceptado · Fecha: 2026-10-07
 
@@ -36,9 +36,9 @@ encontrar.
 
 ## Fuera de alcance
 
-- Que los archivos mergeados pasen `prettier --check` (C14 en el spec raíz, arreglo aparte).
+- Que los archivos mergeados pasen `prettier --check` (concern de formato del spec raíz, arreglo aparte).
 - Un `tsconfig.eslint.json` propio con opciones laxas, y los tsconfig _solution-style_ con
-  `references` (C15, junto con C11).
+  `references` (paso 3 del plan raíz).
 - Las opciones fuera de la categoría _Type Checking_ (`skipLibCheck`,
   `verbatimModuleSyntax`, `isolatedModules`): si el proyecto las fija, conserva su valor.
 
