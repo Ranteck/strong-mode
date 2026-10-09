@@ -139,6 +139,7 @@ Generated projects enforce extreme type safety:
 - Non-trivial changes go through `/graph-engineer`: Codex writes and critiques, Claude arbitrates. The cycle's contract lives in `PROJECT_CONTEXT.md` and is archived in `PROJECT_CONTEXT.archive/` when the cycle ends.
 - Altitude rule: if two review passes bring variants of the same class, run a multi-lens sweep and reformulate the contract instead of patching round by round. If a peripheral helper grows, shrink it: the Vitest detection went from a 608-line shell emulator to a closed whitelist of about 100 lines (`PROJECT_CONTEXT.archive/vitest-command-detection.md`). If advice to the user keeps coming out wrong, remove it.
 - Run `/code-review` in parallel with each Codex CRITIQUE; run `/pre-push` (Definition of Done, template sync, Codex review) before every push; run `/e2e-pm-matrix` when `src/apply`, `package-manager.ts`, `process.ts` or the template change.
+- Where those commands come from: `/code-review` is built into Claude Code; `/graph-engineer` is the owner's user-level skill and needs the official Codex plugin (`openai/codex-plugin-cc`); `/pre-push` and `/e2e-pm-matrix` are project skills under `.claude/skills/`, kept locally by the owner and not committed yet. Without them, run the same steps by hand: the Definition of Done below, and a second-opinion review before pushing.
 - A large feature gets its own `intent/<slug>/` with intent, spec and plan, each approved by the owner before the next one is written.
 
 ## Important Constraints
