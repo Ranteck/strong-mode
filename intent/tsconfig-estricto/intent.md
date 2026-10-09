@@ -40,7 +40,7 @@ encontrar.
 - Un `tsconfig.eslint.json` propio con opciones laxas, y los tsconfig _solution-style_ con
   `references` (paso 3 del plan raíz).
 - Las opciones fuera de la categoría _Type Checking_ (`skipLibCheck`,
-  `verbatimModuleSyntax`, `isolatedModules`): si el proyecto las fija, conserva su valor.
+  `verbatimModuleSyntax`, `isolatedModules`): si el proyecto las fija, conserva su valor. La excepción es `noCheck`, que apaga el chequeo entero: queda en `false`.
 
 ## Preguntas abiertas
 
@@ -50,3 +50,5 @@ encontrar.
 ## Cambios
 
 <!-- AAAA-MM-DD: qué cambió y por qué (aprobado por el usuario) -->
+
+- 2026-10-09: `noCheck` también toma el valor del template (`false`), porque apaga el chequeo de tipos entero; y se acepta un límite: un comentario en la misma línea que la última entrada de un objeto o array puede quedar después de lo insertado, y la línea vecina puede reindentarse. Los comentarios nunca se borran, salvo dentro de un array que se reemplaza entero. Aprobado por el usuario.

@@ -18,7 +18,8 @@ npx strong-mode
 
 - All 20 options in TypeScript 5.9's _Type Checking_ category (`strict` and its family,
   `noUncheckedIndexedAccess`, `exactOptionalPropertyTypes`, `noImplicitOverride`,
-  `allowUnreachableCode: false`, …), plus `skipLibCheck: false` by default
+  `allowUnreachableCode: false`, …), plus `noCheck: false` (forced even over an explicit
+  project value) and `skipLibCheck: false` by default
 - An existing `tsconfig.json` is read as JSONC and edited in place, keeping comments.
   Its type-checking options take the template's values, and strong-mode lists
   each explicit option it raised (or would raise with `--dry-run`). Other scalars, including
@@ -26,7 +27,10 @@ npx strong-mode
   arrays keep the project's elements, including duplicates, and append only missing template
   elements; the project's `extends` is preserved. In `tsconfig.eslint.json`, `exclude` takes
   the template's value: missing entries are appended if it starts with the project's array;
-  otherwise the whole array is replaced, including any comments inside it.
+  otherwise the whole array is replaced, including any comments inside it. A comment on
+  the same line after the last entry of an object or array can end up after inserted
+  entries, and the neighbouring line can be reindented or respaced. Comments are never
+  deleted except inside an array replaced as a whole.
 - A leading UTF-8 BOM is accepted and kept. Tsconfigs with duplicate keys in any object or
   any key named `__proto__` get conflict markers with a warning explaining the fallback.
 

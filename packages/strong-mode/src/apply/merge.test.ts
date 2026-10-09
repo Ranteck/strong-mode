@@ -258,6 +258,7 @@ describe("mergeManagedFileContent", (): void => {
       "tsconfig.json",
       JSON.stringify({
         compilerOptions: {
+          noCheck: true,
           allowUnreachableCode: true,
           noUnusedLocals: false,
           strict: false,
@@ -276,6 +277,7 @@ describe("mergeManagedFileContent", (): void => {
           noUncheckedIndexedAccess: true,
           allowUnusedLabels: false,
           allowUnreachableCode: false,
+          noCheck: false,
           target: "ES2024",
         },
       }),
@@ -285,6 +287,7 @@ describe("mergeManagedFileContent", (): void => {
     };
 
     expect(merged.compilerOptions).toEqual({
+      noCheck: false,
       allowUnreachableCode: false,
       noUnusedLocals: true,
       strict: true,
@@ -300,6 +303,7 @@ describe("mergeManagedFileContent", (): void => {
       { name: "noUnusedLocals", from: false, to: true },
       { name: "allowUnusedLabels", from: true, to: false },
       { name: "allowUnreachableCode", from: true, to: false },
+      { name: "noCheck", from: true, to: false },
     ]);
   });
 

@@ -1,7 +1,9 @@
 import { readFileSync } from "node:fs";
 import { mkdir, mkdtemp, rm, symlink, writeFile } from "node:fs/promises";
+import { createRequire } from "node:module";
 import os from "node:os";
 import path from "node:path";
+import { runInNewContext } from "node:vm";
 import semver from "semver";
 import ts from "typescript";
 import { describe, expect, it } from "vitest";
@@ -58,7 +60,9 @@ describe("TYPE_CHECKING_OPTIONS", (): void => {
       readFileSync(path.join(resolveTemplateDir(), "tsconfig.json"), "utf8"),
     ) as { compilerOptions: Record<string, unknown> };
 
-    expect(TYPE_CHECKING_OPTIONS).toHaveLength(20);
+    expect(TYPE_CHECKING_OPTIONS).toHaveLength(21);
+    expect(TYPE_CHECKING_OPTIONS.at(-1)).toBe("noCheck");
+    expect(compilerOptions.noCheck).toBe(false);
     for (const option of TYPE_CHECKING_OPTIONS) {
       expect(typeof compilerOptions[option], option).toBe("boolean");
     }
@@ -68,7 +72,7 @@ describe("TYPE_CHECKING_OPTIONS", (): void => {
     const parsed = ts.parseJsonConfigFileContent(
       {
         compilerOptions: Object.fromEntries(
-          TYPE_CHECKING_OPTIONS.map((option) => [option, true]),
+          TYPE_CHECKING_OPTIONS.map((option) => [option, option !== "noCheck"]),
         ),
         files: ["index.ts"],
       },
@@ -85,50 +89,103 @@ describe("TYPE_CHECKING_OPTIONS", (): void => {
 });
 
 describe("MANAGED_TEMPLATE_FILES", (): void => {
-  it("typechecks template env.ts without leaking Node globals into a DOM project with types: []", async (): Promise<void> => {
-    const templateDir = resolveTemplateDir();
-    const { compilerOptions } = JSON.parse(
-      readFileSync(path.join(templateDir, "tsconfig.json"), "utf8"),
-    ) as { compilerOptions: Record<string, unknown> };
-    const projectDir = await mkdtemp(path.join(os.tmpdir(), "strong-mode-env-"));
-    try {
-      await mkdir(path.join(projectDir, "src"));
-      await writeFile(path.join(projectDir, "package.json"), '{"type":"module"}');
-      await symlink(
-        path.resolve(templateDir, "../../../node_modules"),
-        path.join(projectDir, "node_modules"),
-        "dir",
-      );
-      const envPath = path.join(projectDir, "src/env.ts");
-      const timerPath = path.join(projectDir, "src/timer.ts");
-      await writeFile(
-        envPath,
-        readFileSync(path.join(templateDir, "src/env.ts"), "utf8"),
-      );
-      await writeFile(
-        timerPath,
-        "export const timer: number = setTimeout(() => undefined, 1);\n",
-      );
-      const { options, errors } = ts.convertCompilerOptionsFromJson(
-        { ...compilerOptions, types: [], lib: ["ES2024", "DOM"] },
-        projectDir,
-      );
-      const program = ts.createProgram([envPath, timerPath], options);
+  it("tests env.ts against a Zod version within the template's declared range", (): void => {
+    const require = createRequire(import.meta.url);
+    const { version } = JSON.parse(
+      readFileSync(require.resolve("zod/package.json"), "utf8"),
+    ) as { version: string };
+    const { dependencies } = JSON.parse(
+      readFileSync(path.join(resolveTemplateDir(), "package.json"), "utf8"),
+    ) as { dependencies: Record<string, string> };
 
-      expect(errors).toEqual([]);
-      expect(program.getSourceFile(envPath)).toBeDefined();
-      expect(program.getSourceFile(timerPath)).toBeDefined();
-      expect(
-        ts
-          .getPreEmitDiagnostics(program)
-          .map((diagnostic) =>
-            ts.flattenDiagnosticMessageText(diagnostic.messageText, "\n"),
-          ),
-      ).toEqual([]);
-    } finally {
-      await rm(projectDir, { recursive: true, force: true });
-    }
+    expect(semver.satisfies(version, dependencies.zod ?? "")).toBe(true);
   });
+
+  it("uses schema defaults when env.ts runs without a process global", (): void => {
+    const source = readFileSync(path.join(resolveTemplateDir(), "src/env.ts"), "utf8");
+    const { outputText } = ts.transpileModule(source, {
+      compilerOptions: { module: ts.ModuleKind.CommonJS },
+    });
+    const module = { exports: {} };
+    const context = {
+      require: createRequire(import.meta.url),
+      module,
+      exports: module.exports,
+    };
+
+    expect(context).not.toHaveProperty("process");
+    runInNewContext(outputText, context);
+    expect(module.exports).toEqual({
+      env: { NODE_ENV: "development", LOG_LEVEL: "info" },
+    });
+  });
+
+  it.each([
+    { name: "template lib", lib: undefined },
+    { name: "DOM lib", lib: ["ES2024", "DOM"] },
+  ])(
+    "typechecks template env.ts with $name and keeps process local under types: []",
+    async ({ lib }): Promise<void> => {
+      const templateDir = resolveTemplateDir();
+      const { compilerOptions } = JSON.parse(
+        readFileSync(path.join(templateDir, "tsconfig.json"), "utf8"),
+      ) as { compilerOptions: Record<string, unknown> };
+      const projectDir = await mkdtemp(path.join(os.tmpdir(), "strong-mode-env-"));
+      try {
+        await mkdir(path.join(projectDir, "src"));
+        await writeFile(path.join(projectDir, "package.json"), '{"type":"module"}');
+        await symlink(
+          path.resolve(templateDir, "../../../node_modules"),
+          path.join(projectDir, "node_modules"),
+          "junction",
+        );
+        const envPath = path.join(projectDir, "src/env.ts");
+        const timerPath = path.join(projectDir, "src/timer.ts");
+        await writeFile(
+          envPath,
+          readFileSync(path.join(templateDir, "src/env.ts"), "utf8"),
+        );
+        const rootNames = [envPath];
+        if (lib !== undefined) {
+          await writeFile(
+            timerPath,
+            "export const timer: number = setTimeout(() => undefined, 1);\n",
+          );
+          rootNames.push(timerPath);
+        }
+        const { options, errors } = ts.convertCompilerOptionsFromJson(
+          { ...compilerOptions, types: [], ...(lib === undefined ? {} : { lib }) },
+          projectDir,
+        );
+        const program = ts.createProgram(rootNames, options);
+
+        expect(errors).toEqual([]);
+        expect(program.getSourceFile(envPath)).toBeDefined();
+        for (const rootName of rootNames) {
+          expect(program.getSourceFile(rootName)).toBeDefined();
+        }
+        expect(
+          ts
+            .getPreEmitDiagnostics(program)
+            .map((diagnostic) =>
+              ts.flattenDiagnosticMessageText(diagnostic.messageText, "\n"),
+            ),
+        ).toEqual([]);
+
+        const leakedPath = path.join(projectDir, "src/leaked.ts");
+        await writeFile(leakedPath, 'export const leaked = process.env["NODE_ENV"];\n');
+        const siblingProgram = ts.createProgram([...rootNames, leakedPath], options);
+        expect(
+          ts.getPreEmitDiagnostics(siblingProgram).map((diagnostic) => ({
+            code: diagnostic.code,
+            file: diagnostic.file?.fileName,
+          })),
+        ).toEqual([{ code: 2591, file: leakedPath }]);
+      } finally {
+        await rm(projectDir, { recursive: true, force: true });
+      }
+    },
+  );
 
   it.each(["tsconfig.json", "tsconfig.eslint.json"])(
     "bundles %s without a leading UTF-8 BOM",

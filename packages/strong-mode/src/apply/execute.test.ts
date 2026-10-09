@@ -78,7 +78,7 @@ describe("executeApplyPlan", (): void => {
     { dryRun: false, backup: true, verb: "wrote" },
     { dryRun: true, backup: true, verb: "would write" },
   ])(
-    "warns once when an unsafe merge $verb conflict markers instead",
+    "warns once when an unsafe merge $verb conflict markers instead (backup: $backup)",
     async ({ dryRun, backup, verb }): Promise<void> => {
       const tempDir = await mkdtemp(path.join(os.tmpdir(), "strong-mode-execute-"));
       const existing = '{"compilerOptions":{"strict":true,"strict":false}}';
@@ -143,14 +143,26 @@ describe("executeApplyPlan", (): void => {
   );
 
   it.each([
-    { dryRun: false, verb: "raised", strict: true, allowUnreachableCode: false },
-    { dryRun: true, verb: "would raise", strict: false, allowUnreachableCode: true },
+    {
+      dryRun: false,
+      verb: "raised",
+      strict: true,
+      allowUnreachableCode: false,
+      noCheck: false,
+    },
+    {
+      dryRun: true,
+      verb: "would raise",
+      strict: false,
+      allowUnreachableCode: true,
+      noCheck: true,
+    },
   ])(
     "warns once for the type-checking options it $verb in tsconfig.json",
-    async ({ dryRun, verb, strict, allowUnreachableCode }): Promise<void> => {
+    async ({ dryRun, verb, strict, allowUnreachableCode, noCheck }): Promise<void> => {
       const tempDir = await mkdtemp(path.join(os.tmpdir(), "strong-mode-execute-"));
       const existing =
-        '{\n  // project choices\n  "compilerOptions": { "allowUnreachableCode": true, "strict": false }\n}\n';
+        '{\n  // project choices\n  "compilerOptions": { "allowUnreachableCode": true, "strict": false, "noCheck": true }\n}\n';
       await writeFile(path.join(tempDir, "tsconfig.json"), existing);
       const warn = vi.spyOn(log, "warn").mockImplementation((): void => undefined);
       try {
@@ -162,7 +174,7 @@ describe("executeApplyPlan", (): void => {
                 relativePath: "tsconfig.json",
                 sourceTemplatePath: "/template/tsconfig.json",
                 content:
-                  '{"compilerOptions":{"strict":true,"allowUnreachableCode":false,"noImplicitAny":true}}',
+                  '{"compilerOptions":{"strict":true,"allowUnreachableCode":false,"noImplicitAny":true,"noCheck":false}}',
                 exists: true,
               },
             ],
@@ -180,12 +192,13 @@ describe("executeApplyPlan", (): void => {
         );
 
         expect(warn).toHaveBeenCalledExactlyOnceWith(
-          `tsconfig.json: ${verb} strict (false → true), allowUnreachableCode (true → false) to the strong-mode values. Type errors they reveal in your code are expected; fix the code rather than lowering the options.`,
+          `tsconfig.json: ${verb} strict (false → true), allowUnreachableCode (true → false), noCheck (true → false) to the strong-mode values. Type errors they reveal in your code are expected; fix the code rather than lowering the options.`,
         );
         expect(result.mergedFiles).toEqual(["tsconfig.json"]);
         const written = await readFile(path.join(tempDir, "tsconfig.json"), "utf8");
         expect(written).toContain("// project choices");
         expect(written).toContain(`"strict": ${String(strict)}`);
+        expect(written).toContain(`"noCheck": ${String(noCheck)}`);
         expect(written).toContain(
           `"allowUnreachableCode": ${String(allowUnreachableCode)}`,
         );

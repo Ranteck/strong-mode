@@ -88,8 +88,6 @@ Esperan decisión del dueño; los huecos están en [plan.md](plan.md).
   (REQ-9).
 - **Duplicación entre archivos y reutilización.** Falta elegir herramientas; si no hay una
   para reutilización, REQ-5 choca con no reimplementar.
-- **`noCheck: true`.** Apaga el chequeo de tipos aunque REQ-2 se cumpla.
-  ¿strong-mode lo fuerza a `false`?
 - **Otros runners de tests.** Con Jest, la cobertura igual corre Vitest. ¿Se
   adaptan los gates al runner o se exige Vitest? (REQ-6, REQ-8).
 - **Formato de lo que strong-mode combina.** Puede no pasar el chequeo de formato.

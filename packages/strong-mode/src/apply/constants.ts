@@ -77,7 +77,8 @@ export const MANAGED_FILE_DEPENDENCIES: Readonly<Record<string, string>> = {
 };
 
 // TypeScript's own "Type Checking" category (5.9) defines what makes the project
-// stricter. These options take the template's values; the values live there.
+// stricter, plus noCheck: outside that category, true disables type checking entirely.
+// These options take the template's values; the values live there.
 export const TYPE_CHECKING_OPTIONS: readonly string[] = [
   "strict",
   "noImplicitAny",
@@ -99,6 +100,7 @@ export const TYPE_CHECKING_OPTIONS: readonly string[] = [
   "noPropertyAccessFromIndexSignature",
   "allowUnusedLabels",
   "allowUnreachableCode",
+  "noCheck",
 ];
 
 // Managed tests written for Vitest. They are only added when the project's "test"

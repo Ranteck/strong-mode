@@ -33,12 +33,7 @@ ejercite.
 
 ## Orden de trabajo
 
-1. **Cerrar `tsconfig-estricto` (REQ-2).** La rama está en `3f911cd`, en pausa. Falta
-   decidir tres cosas:
-   - los comentarios que cambian de lugar al insertar opciones (T5 de la feature);
-   - `noCheck` (concern del spec);
-   - el `process` declarado en `src/env.ts`, que en un proyecto de navegador compila pero
-     falla al ejecutarse.
+1. **Cerrar `tsconfig-estricto` (REQ-2).** La rama está en `3f911cd`, en pausa. Decidido el 2026-10-09: los comentarios pueden cambiar de lugar al insertar (límite aceptado), `noCheck` queda en `false`, y `src/env.ts` usa los valores por defecto si no existe `process`.
 
    Después: revisión, challenger, VERIFY con `/e2e-pm-matrix`, archivo del contexto, docs de
    la feature (REQ-n y tabla de tests) y PR.
@@ -67,8 +62,6 @@ ejercite.
 
 - Si este archivo queda viejo, las sesiones arrancan con hechos falsos: se actualiza al
   cerrar cada PR o ciclo, y cada REQ que el PR toca se reevalúa contra `main`.
-- `feat/strict-tsconfig-merge` usa la numeración vieja (R2, C10–C16). Al integrarle `main`,
-  se traduce a REQ-n.
 - Los archivos de `intent/` se cargan en cada sesión, así que tienen que ser cortos.
 
 ## Prueba
