@@ -15,21 +15,21 @@ Estado en `main` (`44a3955`) al 2026-10-08: **cubre** (un test o el CI lo ejerci
 **parcial** o **falta**. Un REQ pasa a "cubre" solo con un test o un paso de CI que lo
 ejercite.
 
-| Test (comportamiento observable)                                                                 | REQ          | Estado                                                                           |
-| ------------------------------------------------------------------------------------------------ | ------------ | -------------------------------------------------------------------------------- |
-| CI: el CLI empaquetado aplica sobre un proyecto nuevo y su `check` pasa; tests unitarios del CLI | REQ-1, REQ-8 | cubre en proyectos nuevos; falta uno existente con otro runner o fuera de `src/` |
-| Un `tsconfig.json` con `"strict": false` y comentarios queda estricto y la salida lo avisa       | REQ-2        | falta en `main`; hecho en `feat/strict-tsconfig-merge`                           |
-| CI: el lint del proyecto generado falla ante `any`, `!` y casts                                  | REQ-3        | falta: hoy solo se prueba que el lint pasa                                       |
-| CI: `dead-code` falla y nombra el código muerto                                                  | REQ-3        | cubre                                                                            |
-| El gate falla ante código copiado entre archivos                                                 | REQ-4        | falta: no hay herramienta                                                        |
-| El gate falla ante una función reimplementada                                                    | REQ-5        | falta: no hay herramienta                                                        |
-| CI: complejidad, dependency-cruiser, madge y audit fallan ante un proyecto que los viola         | REQ-6        | parcial: solo la cobertura mínima corre, dentro del apply                        |
-| El `tests/env.test.ts` del template valida el entorno con Zod                                    | REQ-7        | parcial: solo variables de entorno                                               |
-| `/e2e-pm-matrix` con npm 10 y 11, pnpm, Yarn 1 y bun                                             | REQ-9        | parcial: es manual, y en Yarn 1 y bun el lint con tipos se cae                   |
-| `patchers.test.ts` y `merge.test.ts`: el merge conserva campos y scripts                         | REQ-10       | parcial: el `engines` del template pisa el del usuario y el backup es opcional   |
-| `scripts.test.ts`, `module-system.test.ts` y el CI de CommonJS: rechazo explicado                | REQ-11       | cubre; falta un test del aviso de que apply ya escribió cambios                  |
-| Revisión de altitud en cada ciclo: ningún helper propio emula a una herramienta                  | REQ-12       | sin test automático                                                              |
-| CI del repo: `check` y `dead-code` del CLI                                                       | REQ-13       | parcial: no corre `quality` sobre sí mismo                                       |
+| Test (comportamiento observable)                                                                                                   | REQ          | Estado                                                                                        |
+| ---------------------------------------------------------------------------------------------------------------------------------- | ------------ | --------------------------------------------------------------------------------------------- |
+| CI: el CLI empaquetado aplica sobre un proyecto nuevo y su `check` pasa; tests unitarios del CLI                                   | REQ-1, REQ-8 | cubre en proyectos nuevos; falta uno existente con otro runner o fuera de `src/`              |
+| Un `tsconfig.json` con varias opciones de chequeo laxas y comentarios queda con todas las del template, y la salida avisa cada una | REQ-2        | falta en `main`; hecho en `feat/strict-tsconfig-merge`                                        |
+| CI: el lint del proyecto generado falla ante `any`, `!` y casts                                                                    | REQ-3        | falta: hoy solo se prueba que el lint pasa                                                    |
+| CI: `dead-code` falla y nombra el código muerto                                                                                    | REQ-3        | cubre                                                                                         |
+| El gate falla ante código copiado entre archivos                                                                                   | REQ-4        | falta: no hay herramienta                                                                     |
+| El gate falla ante una función reimplementada                                                                                      | REQ-5        | falta: no hay herramienta                                                                     |
+| CI: complejidad, dependency-cruiser, madge y audit fallan ante un proyecto que los viola                                           | REQ-6        | parcial: solo la cobertura mínima corre, dentro del apply                                     |
+| El `tests/env.test.ts` del template valida el entorno con Zod                                                                      | REQ-7        | parcial: solo variables de entorno                                                            |
+| `/e2e-pm-matrix` con npm 10 y 11, pnpm, Yarn 1 y bun                                                                               | REQ-9        | parcial: es manual, en Yarn 1 y bun el lint con tipos se cae, y Yarn Berry (PnP) no se prueba |
+| `patchers.test.ts` y `merge.test.ts`: el merge conserva campos y scripts                                                           | REQ-10       | parcial: el `engines` del template pisa el del usuario y el backup es opcional                |
+| `scripts.test.ts`, `module-system.test.ts` y el CI de CommonJS: rechazo explicado                                                  | REQ-11       | cubre; falta un test del aviso de que apply ya escribió cambios                               |
+| Revisión de altitud en cada ciclo: ningún helper propio emula a una herramienta                                                    | REQ-12       | sin test automático                                                                           |
+| CI del repo: `check` y `dead-code` del CLI                                                                                         | REQ-13       | parcial: no corre `quality` sobre sí mismo                                                    |
 
 ## Orden de trabajo
 

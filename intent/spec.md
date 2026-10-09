@@ -40,7 +40,7 @@ Estado: aceptado
 - THEN quedan instalados los gates y todos pasan.
 - GIVEN un proyecto existente con un `any`
 - WHEN se aplica strong-mode
-- THEN solo falla el lint de ese `any`; lo agregado no falla.
+- THEN solo falla el lint del `any`; lo agregado no falla.
 
 ### Más estricto que `strict` (REQ-2)
 
@@ -53,8 +53,8 @@ Estado: aceptado
 
 - GIVEN un proyecto aplicado
 - WHEN alguien agrega un `any`, un export sin uso, código copiado de otro archivo, una
-  función que reimplementa una existente, una función demasiado compleja, una entrada externa
-  sin validar o una dependencia vulnerable
+  función reimplementada, una función demasiado compleja, una entrada externa sin validar o
+  una dependencia con una vulnerabilidad alta o crítica
 - THEN el gate correspondiente falla y nombra el problema.
 
 ### No pisar al usuario y explicar (REQ-10, REQ-11)
@@ -81,13 +81,13 @@ Estado: aceptado
 
 ## Concerns
 
-Esperan una decisión del dueño; los huecos están en [plan.md](plan.md).
+Esperan decisión del dueño; los huecos están en [plan.md](plan.md).
 
 - **CommonJS.** Un `"type": "commonjs"` declarado se rechaza; sin `type`, el proyecto pasa a
   ESM y sus `.js` CommonJS se rompen. ¿Soportarlo es parte de la intención?
   (REQ-9).
-- **Duplicación entre archivos y reutilización.** Falta elegir herramientas; si no hay una para reutilización, REQ-5
-  choca con no reimplementar.
+- **Duplicación entre archivos y reutilización.** Falta elegir herramientas; si no hay una
+  para reutilización, REQ-5 choca con no reimplementar.
 - **`noCheck: true`.** Apaga el chequeo de tipos aunque REQ-2 se cumpla.
   ¿strong-mode lo fuerza a `false`?
 - **Otros runners de tests.** Con Jest, la cobertura igual corre Vitest. ¿Se
