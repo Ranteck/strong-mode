@@ -1,64 +1,96 @@
-# Spec: strong-mode (desde intent.md 2026-10-07)
+# Spec: strong-mode (desde intent.md 2026-10-08)
+
+Estado: aceptado
 
 ## Requisitos
 
-Cada requisito cita la parte de [intent.md](intent.md) de la que sale. Estados: **verificado** (lo ejercitan tests o el CI del repo), **configurado** (el template de `main` lo trae, pero ningún test ni CI lo ejercita sobre un proyecto generado), **parcial**, **hueco**, **pendiente** (en un PR abierto) y **abierto** (falta decidir). Los estados son una evaluación al 2026-10-07, no una garantía: antes de apoyarse en uno, verificarlo en el código.
+- REQ-1 MUST: un comando (`npx strong-mode`) aplica strong-mode a un proyecto TypeScript
+  nuevo o existente. Origen: Restricciones, "instalar fácilmente a través de la CLI".
+- REQ-2 MUST: el `tsconfig.json` queda con todas las opciones de chequeo de tipos del
+  template, aunque el proyecto las tuviera más laxas, y strong-mode avisa cuáles subió.
+  Origen: Resultado esperado; excepción de Restricciones.
+- REQ-3 MUST: los gates fallan ante escapes del tipado (`any`, `!`, casts) y código muerto.
+  Origen: Problema y Resultado esperado.
+- REQ-4 MUST: los gates fallan ante código duplicado, también entre archivos. Origen:
+  Resultado esperado.
+- REQ-5 MUST: los gates fallan ante funcionalidad reimplementada en vez de reutilizada.
+  Origen: Resultado esperado.
+- REQ-6 MUST: los gates cubren complejidad, arquitectura, cobertura de tests y auditoría de
+  dependencias. Origen: Resultado esperado, prompt fundacional.
+- REQ-7 SHOULD: las entradas externas pasan por una validación con tipos. Origen: Problema.
+- REQ-8 MUST: lo que strong-mode agrega no hace fallar los gates; lo que encuentran en el
+  código existente es lo que vino a mostrar. Origen: Resultado esperado, "desde el primer día".
+- REQ-9 MUST: funciona con cualquier framework y con npm, pnpm, Yarn y bun. Origen: Usuarios y
+  Restricciones.
+- REQ-10 MUST: conserva los campos y scripts del usuario; lo que no puede combinar queda con
+  backup o conflicto marcado. Origen: Restricciones.
+- REQ-11 MUST: ante lo que no reconoce, hace lo conservador y explica por qué. Origen: Fuera
+  de alcance.
+- REQ-12 MUST: compone herramientas existentes en vez de reimplementarlas; si difieren, gana
+  la herramienta. Origen: Restricciones, "un wrapper"; Fuera de alcance.
+- REQ-13 MUST: el código propio pasa los mismos gates: chico, sin duplicación ni código
+  muerto. Origen: Restricciones.
 
-| #   | Requisito                                                       | Intent                                  | Cómo se cumple hoy                                                                                                                                                                                                                                                                                                                         | Estado      |
-| --- | --------------------------------------------------------------- | --------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ----------- |
-| R1  | Un comando aplica strong-mode, a proyectos nuevos o existentes  | Restricciones                           | `npx strong-mode`: detect → plan → execute, cubierto por los tests unitarios del CLI. El CI empaqueta el CLI, hace un apply real sobre un proyecto nuevo y corre su `check`                                                                                                                                                                | verificado  |
-| R2  | Tipado más estricto que `strict`                                | Resultado esperado                      | El template trae `strict` más `noUncheckedIndexedAccess`, `exactOptionalPropertyTypes`, `noPropertyAccessFromIndexSignature`, `noImplicitOverride`, `noImplicitReturns` y `noFallthroughCasesInSwitch`. Pero si el proyecto ya tiene `tsconfig.json`, el merge conserva sus valores: un `"strict": false` existente queda en `false` (C10) | parcial     |
-| R3  | Sin escapes del tipado                                          | Problema                                | typescript-eslint prohíbe `any` explícito, `!`, aserciones encadenadas y aserciones de objetos literales; `ban-ts-comment` exige descripción. Pero un `as` simple (`value as string`) pasa, y los tests relajan `no-explicit-any`                                                                                                          | parcial     |
-| R4  | Entradas externas validadas                                     | Problema                                | Zod en `src/env.ts` valida solo `NODE_ENV` y `LOG_LEVEL`, y ESLint obliga a leer `process.env` a través de ese archivo. Nada exige validar otras entradas (APIs, archivos, input del usuario)                                                                                                                                              | parcial     |
-| R5  | Detectar código muerto                                          | Resultado esperado                      | knip (`dead-code`, sin `entry` ni `project` fijos), eslint-plugin-unused-imports, `noUnusedLocals`, `noUnusedParameters`. El CI comprueba que el `dead-code` del proyecto generado atrapa código muerto                                                                                                                                    | verificado  |
-| R6  | Detectar duplicación                                            | Resultado esperado                      | sonarjs `recommended`: funciones idénticas, ramas duplicadas, expresiones idénticas, solo dentro de un archivo                                                                                                                                                                                                                             | parcial     |
-| R7  | Detectar falta de reutilización                                 | Resultado esperado                      | ninguna herramienta                                                                                                                                                                                                                                                                                                                        | hueco       |
-| R8  | Complejidad acotada                                             | Resultado esperado (prompt fundacional) | sonarjs `cognitive-complexity`; ESLint `complexity`, `max-depth`, `max-params`                                                                                                                                                                                                                                                             | configurado |
-| R9  | Arquitectura verificable                                        | Resultado esperado (prompt fundacional) | dependency-cruiser (sin ciclos; el dominio no importa infraestructura), madge                                                                                                                                                                                                                                                              | configurado |
-| R10 | Tests con cobertura mínima                                      | Resultado esperado (prompt fundacional) | Vitest con la cobertura activada y umbrales (90% líneas, funciones y sentencias; 85% ramas). El apply real del CI corre los tests del proyecto generado, así que la cobertura se ejercita                                                                                                                                                  | verificado  |
-| R11 | Auditoría de dependencias                                       | Resultado esperado (prompt fundacional) | `npm audit --audit-level=high`, que necesita un `package-lock.json`                                                                                                                                                                                                                                                                        | parcial     |
-| R12 | Gates que fallan                                                | Resultado esperado                      | `check` (typecheck, lint, format, dead code) y `quality` (`check` más cobertura, dependencias y audit). El CI ejercita `check` sobre el proyecto generado, pero no `quality`. El pre-commit (lefthook) corre solo format, lint y typecheck, y nada fuerza `quality`                                                                        | parcial     |
-| R13 | Cualquier framework                                             | Usuarios                                | knip ya no fija `entry` ni `project`, así que sus plugins encuentran los entry points de cualquier framework. Pero el template mantiene `include: ["src/**/*"]` y `rootDir: ./src`: el código fuera de `src/` (por ejemplo `app/` de Next) queda sin chequear si nadie lo importa, y si se incluye falla el typecheck (C11)                | parcial     |
-| R14 | Cualquier gestor de paquetes                                    | Usuarios                                | lefthook usa `scripts/run-package-manager.sh`, pero `check`, `quality` y `audit` llaman a `npm`; en Yarn Classic y bun el lint se cae (ver C1)                                                                                                                                                                                             | parcial     |
-| R15 | El proyecto pasa sus propios gates al aplicar                   | Resultado esperado                      | El CI hace un apply real sobre un proyecto nuevo (typecheck, lint y tests con cobertura) seguido de `check`; dependency-cruiser, madge y audit no se ejercitan. Un proyecto existente con otro runner (por ejemplo Jest) conserva su `test`, pero `test:coverage` y `quality` corren Vitest (C12)                                          | parcial     |
-| R16 | No pisar el trabajo del usuario                                 | Restricciones                           | el merge de `package.json` conserva campos y scripts; los archivos se mergean o quedan con marcadores de conflicto; backup solo con `--backup`. Excepción: el `engines` del template pisa el del usuario (C4)                                                                                                                              | parcial     |
-| R17 | Código propio chico, sin duplicación ni código muerto           | Restricciones                           | El CI del repo corre typecheck, lint y tests del CLI (`npm run check -w strong-mode`) y el `dead-code` del repo; no corre `quality` sobre sí mismo                                                                                                                                                                                         | parcial     |
-| R18 | Lo que no reconoce, lo trata de forma conservadora y lo explica | Fuera de alcance                        | Por ejemplo, la detección de Vitest (D1): lista blanca cerrada con tests unitarios                                                                                                                                                                                                                                                         | verificado  |
-| R19 | Proyectos CommonJS                                              | Preguntas abiertas                      | El template es solo ESM. strong-mode rechaza `"type": "commonjs"` antes de escribir (el CI lo verifica); un proyecto sin `type` pasa a `"type": "module"` con un aviso, y sus `.js` CommonJS dejan de funcionar                                                                                                                            | abierto     |
+## Capacidades y escenarios
 
-Cuando un PR se mergea, se vuelve a evaluar cada requisito que toca contra el código de `main`. Un PR no lo cumple automáticamente: puede dejarlo parcial.
+### Aplicar con un comando (REQ-1, REQ-8)
 
-## Diseño
+- GIVEN un proyecto TypeScript nuevo
+- WHEN se corre `npx strong-mode --yes`
+- THEN quedan instalados los gates y todos pasan.
+- GIVEN un proyecto existente con un `any`
+- WHEN se aplica strong-mode
+- THEN solo falla el lint del `any`; lo agregado no falla.
 
-- **Monorepo de workspaces npm.** `packages/scaffold-ultra/template/` es la fuente de verdad de las reglas del proyecto generado; `scripts/sync-template.mjs` lo copia a `packages/strong-mode/template/`, que es lo que se publica. Por qué: las reglas del proyecto viven en el template, no en la lógica del CLI.
-- **CLI** (`packages/strong-mode/src`): `cli.ts` → `args.ts` → `apply-command.ts`, con este pipeline:
-  1. detect lee el `package.json` y los archivos gestionados;
-  2. plan separa los archivos a crear de los que entran en conflicto, y arma el merge de `package.json`;
-  3. execute resuelve cada archivo (merge, marcadores, sobrescribir u omitir; `--yes` elige por tipo de archivo), instala y corre los chequeos.
-- **Gates del proyecto generado:** `check` y `quality`; el pre-commit va por lefthook y `scripts/run-package-manager.sh`.
-- **Decisiones y por qué:**
-  - **D1 (2026-10-06): la detección de Vitest es una lista blanca cerrada** de unas 100 líneas, con un veto por runner declarado y motivos factuales al saltear el archivo. Reemplaza a un emulador de shells y gestores que había llegado a 608 líneas y que tenía 47 clases de falla. Por qué: la restricción "código propio chico" y el fuera de alcance "emular shells". Todo el ciclo queda en [PROJECT_CONTEXT.archive/vitest-command-detection.md](../PROJECT_CONTEXT.archive/vitest-command-detection.md).
-  - **D2 (2026-10-07): la intención y el SDLC viven en `intent/`,** y `CLAUDE.md` los importa para que cada sesión los cargue.
-- **Proceso del repo:**
-  - Los cambios no triviales van por `/graph-engineer`: Codex escribe y critica, Claude arbitra. El contrato vive en `PROJECT_CONTEXT.md` y se archiva al cerrar.
-  - **Regla de altitud.** Si dos pasadas de revisión traen variantes de la misma clase, se hace un barrido multi-lente y se reformula el contrato. Si un helper periférico crece, se achica. Si un consejo al usuario sigue saliendo mal, se quita.
-  - `/code-review` corre en paralelo a cada CRITIQUE.
-  - `/pre-push` (Definition of Done, sync del template y revisión de Codex) corre antes de cada push.
-  - `/e2e-pm-matrix` corre cuando cambian `src/apply`, `package-manager.ts`, `process.ts` o el template.
-  - Al cerrar un PR o un ciclo se actualiza [plan.md](plan.md) y los estados de arriba.
+### Más estricto que `strict` (REQ-2)
+
+- GIVEN un `tsconfig.json` con `"strict": false` y comentarios
+- WHEN se aplica strong-mode
+- THEN queda `"strict": true`, los comentarios siguen y la salida avisa
+  `strict (false → true)`.
+
+### Gates que fallan (REQ-3 a REQ-7)
+
+- GIVEN un proyecto aplicado
+- WHEN alguien agrega un `any`, un export sin uso, código copiado de otro archivo, una
+  función reimplementada, una función demasiado compleja, una entrada externa sin validar o
+  una dependencia con una vulnerabilidad alta o crítica
+- THEN el gate correspondiente falla y nombra el problema.
+
+### No pisar al usuario y explicar (REQ-10, REQ-11)
+
+- GIVEN un `package.json` con scripts propios
+- WHEN se aplica strong-mode
+- THEN los scripts siguen y solo se agregan los del template.
+- GIVEN un archivo que no se puede combinar sin riesgo, o un proyecto `"type": "commonjs"`
+- WHEN se aplica con `--yes`
+- THEN el archivo queda con conflicto marcado, o strong-mode se detiene antes de escribir, y
+  la salida explica por qué.
+
+### Cualquier gestor y framework (REQ-9)
+
+- GIVEN el mismo proyecto con npm, pnpm, Yarn o bun, o con código fuera de `src/`
+- WHEN se aplica strong-mode
+- THEN instala con ese gestor y los gates revisan todo su código.
+
+### Código propio (REQ-12, REQ-13)
+
+- GIVEN el repositorio de strong-mode
+- WHEN corre su CI
+- THEN sus gates pasan y ninguna lógica propia duplica a una herramienta compuesta.
 
 ## Concerns
 
-- **C1.** Yarn Classic y bun instalan un TypeScript 7 anidado para sonarjs, y el lint con tipos se cae. Typecheck y tests no se ven afectados (R14).
-- **C2.** Los huecos de duplicación entre archivos (R6) y de reutilización (R7). Hay que investigar herramientas existentes antes de construir nada.
-- **C3.** CommonJS frente a "cualquier proyecto" (R19). Lo decide el usuario. Mientras tanto, la frase de `intent.md` que dice que `main` rompe los proyectos CommonJS quedó vieja: desde PR #9 se rechazan antes de escribir.
-- **C4.** En `patchers.ts`, el `engines` del template pisa el del usuario, y el backup no es por defecto (R16).
-- **C5.** `check`, `quality` y `audit` llaman a `npm`, y `npm audit` necesita `package-lock.json` (R11, R14).
-- **C6.** El pre-commit no corre `dead-code`, y en el proyecto generado nada fuerza `quality` (R12).
-- **C7.** El CI del repo no corre `quality` sobre strong-mode mismo (R17).
-- **C8.** Resuelto en `main`: si la instalación o los chequeos posteriores fallan, el error avisa que apply ya escribió cambios y cuántos.
-- **C9.** En `execute.ts`, las regex que detectan configs de ESLint no coinciden con el resolver de scripts. Quedó diferido en el ciclo de Vitest.
-- **C10.** El merge estructural de `tsconfig.json` (`mergeJsonValues` en `merge.ts`) conserva los valores que el proyecto ya tiene. Un proyecto con `"strict": false` o con flags apagados los mantiene después de aplicar strong-mode. Va contra el corazón de la intención (R2).
-- **C11.** El template fija `include: ["src/**/*"]` y `rootDir: ./src`. El código fuera de `src/` (por ejemplo `app/` de Next) queda sin chequear si nadie lo importa, sin ningún aviso; si se incluye, falla el typecheck (TS6059). El merge conserva el `rootDir` que el proyecto ya tenga. `deps:graph`, `deps:cycles` y la cobertura también miran solo `src/` (R13).
-- **C12.** Un proyecto existente con otro runner (por ejemplo Jest) conserva su script `test`, pero `test:coverage` y `quality` corren Vitest, así que no pasa sus propios gates (R15).
-- **C13.** El CI ejercita un apply real (typecheck, lint y tests con cobertura) y `check`, y verifica que `dead-code` atrape código muerto. Pero no ejercita dependency-cruiser, madge ni audit sobre el proyecto generado (R12, R15).
+Esperan decisión del dueño; los huecos están en [plan.md](plan.md).
+
+- **CommonJS.** Un `"type": "commonjs"` declarado se rechaza; sin `type`, el proyecto pasa a
+  ESM y sus `.js` CommonJS se rompen. ¿Soportarlo es parte de la intención?
+  (REQ-9).
+- **Duplicación entre archivos y reutilización.** Falta elegir herramientas; si no hay una
+  para reutilización, REQ-5 choca con no reimplementar.
+- **`noCheck: true`.** Apaga el chequeo de tipos aunque REQ-2 se cumpla.
+  ¿strong-mode lo fuerza a `false`?
+- **Otros runners de tests.** Con Jest, la cobertura igual corre Vitest. ¿Se
+  adaptan los gates al runner o se exige Vitest? (REQ-6, REQ-8).
+- **Formato de lo que strong-mode combina.** Puede no pasar el chequeo de formato.
+  ¿strong-mode lo formatea? (REQ-8).
