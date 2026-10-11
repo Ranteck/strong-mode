@@ -72,6 +72,148 @@ describe("executeApplyPlan", (): void => {
     vi.clearAllMocks();
   });
 
+  it.each([
+    { dryRun: false, backup: false, verb: "wrote" },
+    { dryRun: true, backup: false, verb: "would write" },
+    { dryRun: false, backup: true, verb: "wrote" },
+    { dryRun: true, backup: true, verb: "would write" },
+  ])(
+    "warns once when an unsafe merge $verb conflict markers instead (backup: $backup)",
+    async ({ dryRun, backup, verb }): Promise<void> => {
+      const tempDir = await mkdtemp(path.join(os.tmpdir(), "strong-mode-execute-"));
+      const existing = '{"compilerOptions":{"strict":true,"strict":false}}';
+      await writeFile(path.join(tempDir, "tsconfig.json"), existing);
+      const warn = vi.spyOn(log, "warn").mockImplementation((): void => undefined);
+      try {
+        const result = await executeApplyPlan(
+          {
+            ...createPlan(tempDir),
+            conflictingFiles: [
+              {
+                relativePath: "tsconfig.json",
+                sourceTemplatePath: "/template/tsconfig.json",
+                content: '{"compilerOptions":{"strict":true}}',
+                exists: true,
+              },
+            ],
+          },
+          {
+            targetDir: tempDir,
+            packageManager: "npm",
+            yes: true,
+            force: false,
+            dryRun,
+            backup,
+            shouldInstall: true,
+            shouldRunChecks: true,
+          },
+        );
+
+        expect(warn).toHaveBeenCalledExactlyOnceWith(
+          `tsconfig.json: could not be merged safely (invalid JSONC or tsconfig shape, a duplicate or __proto__ key, or an edit that could not be verified); ${verb} conflict markers instead.`,
+        );
+        expect(result.conflictedFiles).toEqual(["tsconfig.json"]);
+        expect(result.mergedFiles).toEqual([]);
+        expect(result.installRan).toBe(false);
+        expect(result.checksRan).toEqual([]);
+        expect(runCommandMock).not.toHaveBeenCalled();
+        expect(runPostApplyChecksMock).not.toHaveBeenCalled();
+        const written = await readFile(path.join(tempDir, "tsconfig.json"), "utf8");
+        if (dryRun) {
+          expect(written).toBe(existing);
+          expect(await readdir(tempDir)).toEqual(["tsconfig.json"]);
+        } else {
+          expect(written).toContain("<<<<<<< current project");
+          expect(written).toContain(existing);
+          expect(written).toContain(">>>>>>> strong-mode template");
+          const backups = (await readdir(tempDir)).filter((file) =>
+            file.startsWith("tsconfig.json.strong-mode-backup."),
+          );
+          expect(backups).toHaveLength(backup ? 1 : 0);
+          if (backup) {
+            expect(await readFile(path.join(tempDir, backups[0] ?? ""), "utf8")).toBe(
+              existing,
+            );
+          }
+        }
+      } finally {
+        warn.mockRestore();
+      }
+    },
+  );
+
+  it.each([
+    {
+      dryRun: false,
+      verb: "raised",
+      strict: true,
+      allowUnreachableCode: false,
+      noCheck: false,
+    },
+    {
+      dryRun: true,
+      verb: "would raise",
+      strict: false,
+      allowUnreachableCode: true,
+      noCheck: true,
+    },
+  ])(
+    "warns once for the type-checking options it $verb in tsconfig.json",
+    async ({ dryRun, verb, strict, allowUnreachableCode, noCheck }): Promise<void> => {
+      const tempDir = await mkdtemp(path.join(os.tmpdir(), "strong-mode-execute-"));
+      const existing =
+        '{\n  // project choices\n  "compilerOptions": { "allowUnreachableCode": true, "strict": false, "noCheck": true }\n}\n';
+      await writeFile(path.join(tempDir, "tsconfig.json"), existing);
+      const warn = vi.spyOn(log, "warn").mockImplementation((): void => undefined);
+      try {
+        const result = await executeApplyPlan(
+          {
+            ...createPlan(tempDir),
+            conflictingFiles: [
+              {
+                relativePath: "tsconfig.json",
+                sourceTemplatePath: "/template/tsconfig.json",
+                content:
+                  '{"compilerOptions":{"strict":true,"allowUnreachableCode":false,"noImplicitAny":true,"noCheck":false}}',
+                exists: true,
+              },
+            ],
+          },
+          {
+            targetDir: tempDir,
+            packageManager: "npm",
+            yes: true,
+            force: false,
+            dryRun,
+            backup: false,
+            shouldInstall: false,
+            shouldRunChecks: false,
+          },
+        );
+
+        expect(warn).toHaveBeenCalledExactlyOnceWith(
+          `tsconfig.json: ${verb} strict (false → true), allowUnreachableCode (true → false), noCheck (true → false) to the strong-mode values. Type errors they reveal in your code are expected; fix the code rather than lowering the options.`,
+        );
+        expect(result.mergedFiles).toEqual(["tsconfig.json"]);
+        const written = await readFile(path.join(tempDir, "tsconfig.json"), "utf8");
+        expect(written).toContain("// project choices");
+        expect(written).toContain(`"strict": ${String(strict)}`);
+        expect(written).toContain(`"noCheck": ${String(noCheck)}`);
+        expect(written).toContain(
+          `"allowUnreachableCode": ${String(allowUnreachableCode)}`,
+        );
+        if (dryRun) {
+          expect(written).toBe(existing);
+          expect(await readdir(tempDir)).toEqual(["tsconfig.json"]);
+        } else {
+          expect(written).toContain('"noImplicitAny": true');
+        }
+      } finally {
+        warn.mockRestore();
+      }
+    },
+  );
+
   it("writes conflict markers and suppresses install/checks when conflicts remain", async (): Promise<void> => {
     const tempDir = await mkdtemp(path.join(os.tmpdir(), "strong-mode-execute-"));
     await mkdir(path.join(tempDir, "src"), { recursive: true });

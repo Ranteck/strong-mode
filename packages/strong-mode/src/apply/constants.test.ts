@@ -1,10 +1,11 @@
 import { readFileSync } from "node:fs";
-import { mkdir, mkdtemp, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, rm, symlink, writeFile } from "node:fs/promises";
+import { createRequire } from "node:module";
 import os from "node:os";
 import path from "node:path";
 import semver from "semver";
 import ts from "typescript";
-import { describe, expect, it } from "vitest";
+import { assert, describe, expect, it } from "vitest";
 import { resolveTemplateDir } from "../template.js";
 import {
   LOCKSTEP_DEV_DEPENDENCIES,
@@ -12,6 +13,7 @@ import {
   MANAGED_TEMPLATE_FILES,
   REPLACED_DEV_DEPENDENCIES,
   TEMPLATE_PEER_REQUIREMENTS,
+  TYPE_CHECKING_OPTIONS,
 } from "./constants.js";
 
 describe("LOCKSTEP_DEV_DEPENDENCIES", (): void => {
@@ -51,7 +53,130 @@ describe("LOCKSTEP_DEV_DEPENDENCIES", (): void => {
   });
 });
 
+describe("TYPE_CHECKING_OPTIONS", (): void => {
+  it("are all set by the template tsconfig.json, which owns their values", (): void => {
+    const { compilerOptions } = JSON.parse(
+      readFileSync(path.join(resolveTemplateDir(), "tsconfig.json"), "utf8"),
+    ) as { compilerOptions: Record<string, unknown> };
+
+    expect(TYPE_CHECKING_OPTIONS).toHaveLength(21);
+    expect(compilerOptions.noCheck).toBe(false);
+    for (const option of TYPE_CHECKING_OPTIONS) {
+      expect(typeof compilerOptions[option], option).toBe("boolean");
+    }
+  });
+
+  it("are compiler options TypeScript recognizes", (): void => {
+    const parsed = ts.parseJsonConfigFileContent(
+      {
+        compilerOptions: Object.fromEntries(
+          TYPE_CHECKING_OPTIONS.map((option) => [option, option !== "noCheck"]),
+        ),
+        files: ["index.ts"],
+      },
+      ts.sys,
+      os.tmpdir(),
+    );
+
+    expect(
+      parsed.errors.map((error) =>
+        ts.flattenDiagnosticMessageText(error.messageText, "\n"),
+      ),
+    ).toEqual([]);
+  });
+});
+
 describe("MANAGED_TEMPLATE_FILES", (): void => {
+  it("tests env.ts against a Zod version within the template's declared range", (): void => {
+    const require = createRequire(import.meta.url);
+    const { version } = JSON.parse(
+      readFileSync(require.resolve("zod/package.json"), "utf8"),
+    ) as { version: string };
+    const { dependencies } = JSON.parse(
+      readFileSync(path.join(resolveTemplateDir(), "package.json"), "utf8"),
+    ) as { dependencies: Record<string, string> };
+
+    assert(dependencies.zod !== undefined, "The template must declare zod");
+    expect(semver.satisfies(version, dependencies.zod)).toBe(true);
+  });
+
+  it.each([
+    { name: "template lib", lib: undefined },
+    { name: "DOM lib", lib: ["ES2024", "DOM"] },
+  ])(
+    "typechecks template env.ts with $name and keeps process local under types: []",
+    async ({ lib }): Promise<void> => {
+      const templateDir = resolveTemplateDir();
+      const { compilerOptions } = JSON.parse(
+        readFileSync(path.join(templateDir, "tsconfig.json"), "utf8"),
+      ) as { compilerOptions: Record<string, unknown> };
+      const projectDir = await mkdtemp(path.join(os.tmpdir(), "strong-mode-env-"));
+      try {
+        await mkdir(path.join(projectDir, "src"));
+        await writeFile(path.join(projectDir, "package.json"), '{"type":"module"}');
+        await symlink(
+          path.resolve(templateDir, "../../../node_modules"),
+          path.join(projectDir, "node_modules"),
+          "junction",
+        );
+        const envPath = path.join(projectDir, "src/env.ts");
+        const timerPath = path.join(projectDir, "src/timer.ts");
+        await writeFile(
+          envPath,
+          readFileSync(path.join(templateDir, "src/env.ts"), "utf8"),
+        );
+        const rootNames = [envPath];
+        if (lib !== undefined) {
+          await writeFile(
+            timerPath,
+            "export const timer: number = setTimeout(() => undefined, 1);\n",
+          );
+          rootNames.push(timerPath);
+        }
+        const { options, errors } = ts.convertCompilerOptionsFromJson(
+          { ...compilerOptions, types: [], ...(lib === undefined ? {} : { lib }) },
+          projectDir,
+        );
+        const program = ts.createProgram(rootNames, options);
+
+        expect(errors).toEqual([]);
+        expect(
+          ts
+            .getPreEmitDiagnostics(program)
+            .map((diagnostic) =>
+              ts.flattenDiagnosticMessageText(diagnostic.messageText, "\n"),
+            ),
+        ).toEqual([]);
+
+        const leakedPath = path.join(projectDir, "src/leaked.ts");
+        await writeFile(leakedPath, 'export const leaked = process.env["NODE_ENV"];\n');
+        const siblingProgram = ts.createProgram([...rootNames, leakedPath], options);
+        expect(
+          ts.getPreEmitDiagnostics(siblingProgram).map((diagnostic) => ({
+            code: diagnostic.code,
+            file:
+              diagnostic.file === undefined
+                ? undefined
+                : path.normalize(diagnostic.file.fileName),
+          })),
+        ).toEqual([{ code: 2591, file: path.normalize(leakedPath) }]);
+      } finally {
+        await rm(projectDir, { recursive: true, force: true });
+      }
+    },
+  );
+
+  it.each(["tsconfig.json", "tsconfig.eslint.json"])(
+    "bundles %s without a leading UTF-8 BOM",
+    (file): void => {
+      expect(
+        readFileSync(path.join(resolveTemplateDir(), file), "utf8").startsWith(
+          "\uFEFF",
+        ),
+      ).toBe(false);
+    },
+  );
+
   it("leaves knip entry and project detection to its defaults and framework plugins", async (): Promise<void> => {
     const knipConfigModule = (await import(
       path.join(resolveTemplateDir(), "knip.config.ts")

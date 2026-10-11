@@ -11,14 +11,14 @@ propios que nombran sus archivos. Esta reorganización del SDLC cambia `intent/i
 
 ## Tests a escribir
 
-Estado en `main` (`44a3955`) al 2026-10-08: **cubre** (un test o el CI lo ejercita),
+Estado al 2026-10-10, con `tsconfig-estricto` integrada: **cubre** (un test o el CI lo ejercita),
 **parcial** o **falta**. Un REQ pasa a "cubre" solo con un test o un paso de CI que lo
 ejercite.
 
 | Test (comportamiento observable)                                                                                                   | REQ          | Estado                                                                                        |
 | ---------------------------------------------------------------------------------------------------------------------------------- | ------------ | --------------------------------------------------------------------------------------------- |
 | CI: el CLI empaquetado aplica sobre un proyecto nuevo y su `check` pasa; tests unitarios del CLI                                   | REQ-1, REQ-8 | cubre en proyectos nuevos; falta uno existente con otro runner o fuera de `src/`              |
-| Un `tsconfig.json` con varias opciones de chequeo laxas y comentarios queda con todas las del template, y la salida avisa cada una | REQ-2        | falta en `main`; hecho en `feat/strict-tsconfig-merge`                                        |
+| Un `tsconfig.json` con varias opciones de chequeo laxas y comentarios queda con todas las del template, y la salida avisa cada una | REQ-2        | cubre: `merge.test.ts`, `execute.test.ts` y `constants.test.ts`                               |
 | CI: el lint del proyecto generado falla ante `any`, `!` y casts                                                                    | REQ-3        | falta: hoy solo se prueba que el lint pasa                                                    |
 | CI: `dead-code` falla y nombra el código muerto                                                                                    | REQ-3        | cubre                                                                                         |
 | El gate falla ante código copiado entre archivos                                                                                   | REQ-4        | falta: no hay herramienta                                                                     |
@@ -33,42 +33,32 @@ ejercite.
 
 ## Orden de trabajo
 
-1. **Cerrar `tsconfig-estricto` (REQ-2).** La rama está en `3f911cd`, en pausa. Falta
-   decidir tres cosas:
-   - los comentarios que cambian de lugar al insertar opciones (T5 de la feature);
-   - `noCheck` (concern del spec);
-   - el `process` declarado en `src/env.ts`, que en un proyecto de navegador compila pero
-     falla al ejecutarse.
-
-   Después: revisión, challenger, VERIFY con `/e2e-pm-matrix`, archivo del contexto, docs de
-   la feature (REQ-n y tabla de tests) y PR.
-
-2. **Duplicación y reutilización (REQ-4, REQ-5):** feature `intent/duplicacion-reutilizacion/`
+1. **Duplicación y reutilización (REQ-4, REQ-5):** feature `intent/duplicacion-reutilizacion/`
    para elegir herramientas existentes.
-3. **Frameworks, runners y gestores (REQ-8, REQ-9):**
+2. **Frameworks, runners y gestores (REQ-8, REQ-9):**
    - código fuera de `src/`;
    - `tsconfig.eslint.json` propios y tsconfigs con `references`;
    - otros runners, según la decisión del concern;
    - el lint con tipos en Yarn 1 y bun.
-4. **Gates y preservación (REQ-6, REQ-8, REQ-10):**
+3. **Gates y preservación (REQ-6, REQ-8, REQ-10):**
    - `check`, `quality` y `audit` llaman a `npm`, y `audit` exige `package-lock.json`;
    - el pre-commit no corre `dead-code` y nada fuerza `quality`;
    - el `engines` del template pisa el del usuario, y el backup solo se hace con `--backup`;
    - el formato de lo que se combina, según la decisión del concern;
-   - el CI no ejercita dependency-cruiser, madge ni audit.
-5. **Escapes del tipado (REQ-3):** un `as` simple pasa y los tests relajan `no-explicit-any`;
+   - el CI no ejercita dependency-cruiser, madge ni audit;
+   - nada comprueba el TypeScript mínimo del template: `lib: ["ES2024"]` requiere 5.7;
+     `noCheck` y `strictBuiltinIteratorReturn`, 5.6.
+4. **Escapes del tipado (REQ-3):** un `as` simple pasa y los tests relajan `no-explicit-any`;
    sumar al CI un proyecto que tiene que fallar.
-6. **Código propio (REQ-13):** el CI corre `quality` sobre strong-mode; las regex de configs
+5. **Código propio (REQ-13):** el CI corre `quality` sobre strong-mode; las regex de configs
    de ESLint en `execute.ts` no coinciden con el resolver de scripts.
-7. **CommonJS:** decisión del dueño, que incluye a los proyectos sin `type`, hoy convertidos
+6. **CommonJS:** decisión del dueño, que incluye a los proyectos sin `type`, hoy convertidos
    a ESM.
 
 ## Riesgos
 
 - Si este archivo queda viejo, las sesiones arrancan con hechos falsos: se actualiza al
   cerrar cada PR o ciclo, y cada REQ que el PR toca se reevalúa contra `main`.
-- `feat/strict-tsconfig-merge` usa la numeración vieja (R2, C10–C16). Al integrarle `main`,
-  se traduce a REQ-n.
 - Los archivos de `intent/` se cargan en cada sesión, así que tienen que ser cortos.
 
 ## Prueba

@@ -10,7 +10,11 @@ import {
 } from "./constants.js";
 import { readInstalledVersion } from "./installed.js";
 import { backupFile, fileExists, readTextIfExists, writeTextFile } from "./io.js";
-import { isMergeableManagedFile, mergeManagedFileContent } from "./merge.js";
+import {
+  isMergeableManagedFile,
+  mergeManagedFileContent,
+  type RaisedOption,
+} from "./merge.js";
 import { dropReplacedDependencies, isDeclared } from "./patchers.js";
 import { scriptRunsVitest } from "./scripts.js";
 import { type ConflictResolution, promptFileConflictResolution } from "./prompts.js";
@@ -147,6 +151,26 @@ const applyNewFile = async (
   results.templateFiles.add(managedFile.relativePath);
 };
 
+const warnRaisedOptions = (
+  relativePath: string,
+  raised: readonly RaisedOption[],
+  dryRun: boolean,
+): void => {
+  if (raised.length === 0) {
+    return;
+  }
+
+  const changes = raised
+    .map(
+      ({ name, from, to }): string =>
+        `${name} (${JSON.stringify(from)} → ${JSON.stringify(to)})`,
+    )
+    .join(", ");
+  log.warn(
+    `${relativePath}: ${dryRun ? "would raise" : "raised"} ${changes} to the strong-mode values. Type errors they reveal in your code are expected; fix the code rather than lowering the options.`,
+  );
+};
+
 const applyConflictingFile = async (
   managedFile: ManagedFile,
   options: ExecuteApplyPlanOptions,
@@ -181,37 +205,22 @@ const applyConflictingFile = async (
     return;
   }
 
+  const shouldMerge = decision === "merge";
+  const merge = shouldMerge
+    ? mergeManagedFileContent(managedFile.relativePath, existing, managedFile.content)
+    : undefined;
+  const mergeFailed = shouldMerge && merge === undefined;
+
   const nextContent =
-    decision === "merge"
-      ? mergeManagedFileContent(managedFile.relativePath, existing, managedFile.content)
-      : decision === "conflict"
+    merge !== undefined
+      ? merge.content
+      : decision === "conflict" || mergeFailed
         ? buildConflictFileContent(existing, managedFile.content)
         : managedFile.content;
-
-  if (decision === "merge" && nextContent === undefined) {
-    if (options.backup && !options.dryRun) {
-      await backupFile(targetPath);
-    }
-
-    await writeManagedFile(
-      options.targetDir,
-      managedFile.relativePath,
-      buildConflictFileContent(existing, managedFile.content),
-      options.dryRun,
-    );
-    results.conflictedFiles.push(managedFile.relativePath);
-    return;
-  }
 
   if (nextContent === existing) {
     results.skippedFiles.push(managedFile.relativePath);
     return;
-  }
-
-  if (nextContent === undefined) {
-    throw new Error(
-      `Merge strategy did not produce content for ${managedFile.relativePath}.`,
-    );
   }
 
   if (options.backup && !options.dryRun) {
@@ -225,10 +234,16 @@ const applyConflictingFile = async (
     options.dryRun,
   );
 
-  if (decision === "conflict") {
+  if (decision === "conflict" || mergeFailed) {
     results.conflictedFiles.push(managedFile.relativePath);
-  } else if (decision === "merge") {
+    if (mergeFailed) {
+      log.warn(
+        `${managedFile.relativePath}: could not be merged safely (invalid JSONC or tsconfig shape, a duplicate or __proto__ key, or an edit that could not be verified); ${options.dryRun ? "would write" : "wrote"} conflict markers instead.`,
+      );
+    }
+  } else if (merge !== undefined) {
     results.mergedFiles.push(managedFile.relativePath);
+    warnRaisedOptions(managedFile.relativePath, merge.raisedOptions, options.dryRun);
   } else {
     results.overwrittenFiles.push(managedFile.relativePath);
     results.templateFiles.add(managedFile.relativePath);

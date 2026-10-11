@@ -16,8 +16,25 @@ npx strong-mode
 
 **TypeScript** (`tsconfig.json`):
 
-- `noUncheckedIndexedAccess`, `exactOptionalPropertyTypes`, `noImplicitOverride`
-- `skipLibCheck: false`
+- All 20 options in TypeScript 5.9's _Type Checking_ category (`strict` and its family,
+  `noUncheckedIndexedAccess`, `exactOptionalPropertyTypes`, `noImplicitOverride`,
+  `allowUnreachableCode: false`, …), plus `noCheck: false` (forced even over an explicit
+  project value) and `skipLibCheck: false` by default
+- An existing `tsconfig.json` is read as JSONC and edited in place.
+  Its type-checking options take the template's values, and strong-mode lists
+  each explicit option it raised (or would raise with `--dry-run`). Other scalars, including
+  `skipLibCheck`, `verbatimModuleSyntax` and `isolatedModules`, keep the project's values;
+  arrays keep the project's elements, including duplicates, and append only missing template
+  elements; the project's `extends` is preserved. In `tsconfig.eslint.json`, `exclude` takes
+  the template's value: missing entries are appended if it starts with the project's array;
+  otherwise it is replaced as a whole. Comments are kept, including a comment next to a
+  type-checking option when that option is raised. The only comments deleted are those
+  inside a value strong-mode owns and replaces as a whole; in a valid tsconfig, that is a
+  replaced `exclude` array in `tsconfig.eslint.json`. A comment
+  on the same line after the last entry of an object or array can end up after inserted
+  entries, and the neighbouring line can be reindented or respaced.
+- A leading UTF-8 BOM is accepted and kept. Tsconfigs with duplicate keys in any object or
+  any key named `__proto__` get conflict markers with a warning explaining the fallback.
 
 **ESLint** (`eslint.config.mjs`):
 
@@ -84,6 +101,8 @@ node packages/strong-mode/dist/cli.js --dry-run --yes
 
 ## Roadmap / Known limitations
 
+- **The template's `src/env.ts` targets Node.** It reads `process.env`; in a bundle without `process`, it throws on import.
+- **Tsconfig insertion can move comments and change neighbouring formatting.** A comment on the same line after the last entry of an object or array can end up after the entries strong-mode inserts. Inserting can re-indent or re-space the neighbouring line; inserted content uses 2-space indentation.
 - **CommonJS projects are not supported yet.** The template is ESM-only (`module: NodeNext` + `verbatimModuleSyntax`), so `strong-mode` stops before writing anything when `package.json` has `"type": "commonjs"`. Planned: a CommonJS-aware `tsconfig.json` (`verbatimModuleSyntax: false`, with `consistent-type-imports` keeping type-only imports explicit), and no longer switching a `package.json` without `"type"` to `"module"`.
 - **Other gates still assume a `src/` layout.** The template's `rootDir: ./src` makes `typecheck` fail (TS6059) for any file outside `src/` that the project's tsconfig includes (for example Next.js `app/` or a root `*.config.ts`); `deps:graph` and `deps:cycles` only scan `src` (madge only `.ts`); coverage only measures `src/**/*.ts`. Planned: derive these from the project layout.
 - **Upgrading from an older strong-mode.** Re-running `strong-mode` on a project that already has an older version of the managed files treats every file that differs from the current template as a conflict (with `--yes`, `tsconfig.json`, `tsconfig.eslint.json`, `.gitignore` and `.prettierignore` are merged structurally (the ignore files by lines) and the rest get Git-style markers), and replaced packages stay until `eslint.config.mjs` matches the template. Planned: recognize previously shipped template versions and update them in place.
