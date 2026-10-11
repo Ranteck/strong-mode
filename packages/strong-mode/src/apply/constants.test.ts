@@ -1,4 +1,3 @@
-import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { mkdir, mkdtemp, rm, symlink, writeFile } from "node:fs/promises";
 import { createRequire } from "node:module";
@@ -6,7 +5,7 @@ import os from "node:os";
 import path from "node:path";
 import semver from "semver";
 import ts from "typescript";
-import { describe, expect, it } from "vitest";
+import { assert, describe, expect, it } from "vitest";
 import { resolveTemplateDir } from "../template.js";
 import {
   LOCKSTEP_DEV_DEPENDENCIES,

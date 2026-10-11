@@ -41,7 +41,7 @@
 
 #### Current state
 
-Goal: after `npx strong-mode`, an existing project's `tsconfig.json` is as strict as the template's in every TypeScript type-checking option, edited in place so the user's comments and formatting stay, and strong-mode warns which explicit options it raised. Accepted product documents (read them, they are authoritative): `intent/tsconfig-estricto/intent.md`, `intent/tsconfig-estricto/spec.md` (requirements T1-T8), `intent/tsconfig-estricto/plan.md` (tasks 1-4 with reference code; adapt it if it is wrong, but keep the interfaces below). The root intent `intent/intent.md` records the approved exception: type-checking options take the template's value; everything else keeps the user's.
+Goal: after `npx strong-mode`, an existing project's `tsconfig.json` is as strict as the template's in every TypeScript type-checking option, edited in place so the user's comments and formatting stay, and strong-mode warns which explicit options it raised. Accepted product documents (read them, they are authoritative): `intent/tsconfig-estricto/intent.md`, `intent/tsconfig-estricto/spec.md` (requirements T1-T8), `intent/tsconfig-estricto/plan.md` (a record of what was built, with the requirement -> test table). The root intent `intent/intent.md` records the approved exception: type-checking options take the template's value; everything else keeps the user's.
 
 Requirements:
 
@@ -55,13 +55,19 @@ Requirements:
 8. `execute.ts` (`applyConflictingFile`) uses `MergeResult`; when a tsconfig merge returns `undefined` it warns, once per file, that the file could not be merged safely and got conflict markers instead (the root intent: be conservative and explain why); no other behavior change, and after a merged write calls `log.warn` once per file with raised options, exact text: `<file>: raised <name> (<from> → <to>), ... to the strong-mode values. Type errors they reveal in your code are expected; fix the code rather than lowering the options.` where from/to are `JSON.stringify` values and items are joined with ", ". With `--dry-run` the verb is `would raise` and nothing is written (spec T6).
 9. New runtime dependency: `jsonc-parser@^3.3.1` in `packages/strong-mode/package.json` `dependencies` (lockfile updated). No other new dependency. Its ESM build does not load in Node; the CommonJS entry with named imports does, and tsup keeps it external.
 10. Docs (all approved by the owner on 2026-10-09):
-    - Root `README.md` "What it installs -> TypeScript" describes the merge with the ownership rule of item 6: comments are deleted only inside a value strong-mode owns and replaces as a whole. "Roadmap / Known limitations" gets one line: the template's `src/env.ts` targets Node (it reads `process.env`; in a bundle without `process` it throws on import). Then `npm run sync:template`, which copies the README to `packages/strong-mode/README.md`.
-    - `CLAUDE.md` describes the merge with the same ownership wording, kept short (it loads in every session).
+    - Root `README.md` "What it installs -> TypeScript" describes the merge with the ownership rule of item 6 in terms a user can act on: comments are kept, a comment next to a type-checking option stays when the option is raised, and the only comments deleted are those inside a value strong-mode owns and replaces as a whole, which in a valid tsconfig is a replaced `exclude` array in `tsconfig.eslint.json`. "Roadmap / Known limitations" gets one line: the template's `src/env.ts` targets Node (it reads `process.env`; in a bundle without `process` it throws on import). Then `npm run sync:template`, which copies the README to `packages/strong-mode/README.md`.
+    - `CLAUDE.md` describes the merge with the same ownership wording, kept short (it loads in every session). It names `TYPE_CHECKING_OPTIONS`, like the other constants it points to, and the note that the template `src/env.ts` targets Node sits with the managed files list, not under the tsconfig editing limitations.
     - `intent/tsconfig-estricto/intent.md` (edited by Claude with the owner's OK of 2026-10-10; do not rewrite it):
       - its body names the template `src/env.ts` under "Usuarios y sistemas afectados" (it compiles with the project's `types`) and under "Fuera de alcance" (running without `process`);
-      - `## Cambios` has a single 2026-10-09 entry with the three final decisions: `noCheck: false`, the ownership rule with the accepted comment limitation, and `src/env.ts` Node-only.
-    - `intent/tsconfig-estricto/spec.md`: every row states MUST. T5 states the ownership rule. A new row T8 says that the template `src/env.ts` typechecks under `types: []`, with the template `lib` and with DOM, without adding Node globals to the project's other files (Intent: those two lines of the feature intent, root REQ-8; Tests: `constants.test.ts`). The Diseño section gets one line on `src/env.ts`.
-    - `intent/tsconfig-estricto/plan.md` states what was built (21 options with `noCheck`, the `src/env.ts` declaration) and has a requirement -> test table for T1-T8. The owner accepted on 2026-10-10 its rewrite as a record of what was built, without the old reference code; it stays `Estado: aceptado`, records facts and adds no scope.
+      - `## Cambios` has a single 2026-10-09 entry with the three final decisions: `noCheck: false`, the ownership rule with the accepted comment limitation, and `src/env.ts` Node-only;
+      - its `Fecha` is 2026-10-09, the date of that entry, as in the root chain. It has 527 words, over the skill's 400; the owner chose on 2026-10-10 to leave it, because trimming would rewrite his accepted text.
+    - `intent/tsconfig-estricto/spec.md` (edited by Claude with the owner's OK of 2026-10-10; do not rewrite it):
+      - its header cites the intent of 2026-10-09, and every row states MUST;
+      - T4 states everything item 5 says: the BOM is kept, and a syntax error, a non-object root or `compilerOptions`, duplicate keys, a `__proto__` key or a written text that does not parse back to the computed merge get conflict markers and a warning;
+      - T5 states the ownership rule;
+      - T8 says that the template `src/env.ts` typechecks under `types: []`, with the template `lib` and with DOM, without adding Node globals to the project's other files (Intent: those two lines of the feature intent, root REQ-8; Tests: `constants.test.ts`);
+      - the Diseño section matches the code: one read with `jsonc-parser`, the BOM, the array append, the re-read of the edited text, the fallback warning, and one line on `src/env.ts`.
+    - `intent/tsconfig-estricto/plan.md` (rewritten by Claude with the owner's OK of 2026-10-10; do not rewrite it) follows the skill's plan format: at most 750 words and no code blocks; its header cites spec.md 2026-10-10 and intent.md 2026-10-09; it lists the files, the requirement -> test table for T1-T8, the work done and what is left to close, the risks and how it is verified. It stays `Estado: aceptado`, records facts and adds no scope.
     - Root `intent/spec.md` has no `noCheck` concern.
     - Root `intent/plan.md`:
       - step 1 drops the stale `3f911cd` and lists the final decisions: the comment limitation with the ownership rule, `noCheck: false`, and `src/env.ts` Node-only;
@@ -76,7 +82,7 @@ Tests (TDD: write each failing test first): `constants.test.ts` (the template se
 - a sibling file that reads `process` still gets TS2591, so the declaration stays local; source files are matched by normalized paths, so the check also holds on Windows;
 - the template declares `zod`, and the repository's `zod` satisfies that range; the test fails if the template stops declaring `zod`.
 
-No test executes `src/env.ts` without `process`: that behavior was reverted by the owner's decision of item 2, so its r04 test goes with it. Assertions pin observable behavior, not list order (no `.at(-1)`), without redundant ones. Test fixtures need no elevated privileges on Windows (no `"dir"` symlinks).
+No test executes `src/env.ts` without `process`: that behavior was reverted by the owner's decision of item 2, so its r04 test goes with it. Assertions pin observable behavior, not list order (no `.at(-1)`), without redundant ones, and all go through Vitest (no `node:assert`). Test fixtures need no elevated privileges on Windows (no `"dir"` symlinks).
 
 Constraints: strong-mode's own code stays small, without duplication or dead code; comments explain why, not what; English CLI messages; match the surrounding code style (explicit return types); never weaken an existing test; no changes to prompts, install or check flow.
 
@@ -150,3 +156,18 @@ Out of scope: running Prettier on merged files (the root spec's formatting conce
   - Dispatch: the wrapper agent of this round died on a session limit after dispatching; the Codex task itself completed, and Claude read its result from the companion.
   - Owner decisions of 2026-10-10 on the SDLC docs, applied by Claude: the feature intent names `src/env.ts` in its body and keeps one 2026-10-09 `## Cambios` entry; T8 cites those lines; the rewritten feature plan is accepted, back to `Estado: aceptado` and without round-only sentences.
   - Review budget used: 8 of 13; CRITIQUE passes: 5 of 7.
+
+##### REFACTOR-r06
+
+- **Actors/backend**: orchestrator Claude (triage, contract update, SDLC doc edits with the owner's OK, quality gate, commit); reviewer Codex in a fresh read-only session fed through `--prompt-file`; a parallel Claude `/code-review` at high effort (not a lens); writer Codex in a fresh write session; backend codex
+- **CRITIQUE outcome**: CRITIQUE pass 6 on 9ac815d: Codex reported no valid findings (both copies of `src/env.ts` identical to 3f911cd; the template typechecks and lints under `types: []`, with automatic Node globals and with DOM; a missing root file still fails with TS6053; 126 extra probes kept every comment outside owned values). It could not install a generated project inside its sandbox, which VERIFY covers. The parallel `/code-review` found no correctness bug and eight hygiene items: a stale line in the contract's goal, a spec T4 and Diseño that state less than the code, intent and spec dates not bumped, an ownership sentence in the README that reads as if a comment next to a raised option were deleted, two TypeScript programs per `src/env.ts` test case, a `node:assert` import in a Vitest file, the placement of the `src/env.ts` note and a dropped `TYPE_CHECKING_OPTIONS` mention in CLAUDE.md, and feature docs over the skill's word limits.
+- **DEBATE classifications**:
+  - valid and fixed by Codex: the README and CLAUDE.md wording, the CLAUDE.md pointer and note placement, the `node:assert` import;
+  - valid and fixed by Claude with the owner's OK of 2026-10-10: the contract's goal line, spec T4 and Diseño, the dates, and the feature plan rewritten in the skill's format (560 words, no code);
+  - not changed: the two programs per case cost about a second and keep the two claims of spec T8 as separate assertions;
+  - owner decision: the feature intent stays at 527 words.
+- **Resulting writer work**: README (synced) and CLAUDE.md say that comments are kept, also next to a raised option, and that the only ones deleted sit inside a template-owned value replaced as a whole, which in a valid tsconfig is a replaced `exclude` of `tsconfig.eslint.json`; CLAUDE.md names `TYPE_CHECKING_OPTIONS` again and carries the `src/env.ts` note with the managed files list; `constants.test.ts` uses Vitest's `assert`; 298 tests.
+- **Checkpoint**: locate-by-feature-and-round
+- **Decision notes**:
+  - Process deviation, disclosed to the owner: after this round the cycle goes straight to the exit challenger as pass 7 instead of a resumed review first. The cap stays at 7 by the owner's commitment, and the exit challenger reads the whole final artifact cold.
+  - Review budget used: 9 of 13; CRITIQUE passes: 6 of 7.

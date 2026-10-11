@@ -1,6 +1,6 @@
 # Intención: tsconfig estricto al aplicar (REQ-2)
 
-Autor: Denis Hugo Perafan · Estado: aceptado · Fecha: 2026-10-07
+Autor: Denis Hugo Perafan · Estado: aceptado · Fecha: 2026-10-09
 
 ## Problema
 

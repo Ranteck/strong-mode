@@ -27,10 +27,10 @@ npx strong-mode
   arrays keep the project's elements, including duplicates, and append only missing template
   elements; the project's `extends` is preserved. In `tsconfig.eslint.json`, `exclude` takes
   the template's value: missing entries are appended if it starts with the project's array;
-  otherwise it is replaced as a whole. Values strong-mode owns (type-checking options in
-  `tsconfig.json` and `exclude` in `tsconfig.eslint.json`) are replaced as a whole when
-  they differ, including their internal comments, except for the append case above.
-  Nothing outside an owned value is replaced, so no other comment is deleted. A comment
+  otherwise it is replaced as a whole. Comments are kept, including a comment next to a
+  type-checking option when that option is raised. The only comments deleted are those
+  inside a value strong-mode owns and replaces as a whole; in a valid tsconfig, that is a
+  replaced `exclude` array in `tsconfig.eslint.json`. A comment
   on the same line after the last entry of an object or array can end up after inserted
   entries, and the neighbouring line can be reindented or respaced.
 - A leading UTF-8 BOM is accepted and kept. Tsconfigs with duplicate keys in any object or
