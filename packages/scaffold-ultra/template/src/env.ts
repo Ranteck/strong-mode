@@ -1,11 +1,10 @@
 import { z } from "zod";
 
 // Typed here instead of through @types/node: a project may limit `types` (tsc --init sets
-// "types": []), and Node globals must not leak into its other files. Browsers without
-// process use the schema defaults.
-declare const process:
-  | { readonly env: Readonly<Record<string, string | undefined>> }
-  | undefined;
+// "types": []), and Node globals must not leak into its other files.
+declare const process: {
+  readonly env: Readonly<Record<string, string | undefined>>;
+};
 
 const EnvSchema = z
   .object({
@@ -17,10 +16,9 @@ const EnvSchema = z
 type Env = z.infer<typeof EnvSchema>;
 
 const parseEnv = (): Env => {
-  const environment = typeof process === "undefined" ? {} : process.env;
   const externalInput: unknown = {
-    NODE_ENV: environment["NODE_ENV"],
-    LOG_LEVEL: environment["LOG_LEVEL"],
+    NODE_ENV: process.env["NODE_ENV"],
+    LOG_LEVEL: process.env["LOG_LEVEL"],
   };
 
   const parsed = EnvSchema.safeParse(externalInput);

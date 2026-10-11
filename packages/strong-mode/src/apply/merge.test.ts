@@ -3,6 +3,23 @@ import { describe, expect, it, vi } from "vitest";
 import { isMergeableManagedFile, mergeManagedFileContent } from "./merge.js";
 
 describe("mergeManagedFileContent", (): void => {
+  it("replaces an owned value with its comments while keeping comments outside it", (): void => {
+    const result = mergeManagedFileContent(
+      "tsconfig.json",
+      '{ "compilerOptions": { /* project target */ "target": "ES2020", "noCheck": { /* reason */ "enabled": true } } }',
+      '{ "compilerOptions": { "target": "ES2024", "noCheck": false } }',
+    );
+
+    expect(jsonc.parse(result?.content ?? "{}")).toEqual({
+      compilerOptions: { target: "ES2020", noCheck: false },
+    });
+    expect(result?.content).toContain("/* project target */");
+    expect(result?.content).not.toContain("/* reason */");
+    expect(result?.raisedOptions).toEqual([
+      { name: "noCheck", from: { enabled: true }, to: false },
+    ]);
+  });
+
   it("appends missing include entries while keeping array comments and a trailing comma", (): void => {
     const existing = [
       "{",

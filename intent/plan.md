@@ -33,7 +33,7 @@ ejercite.
 
 ## Orden de trabajo
 
-1. **Cerrar `tsconfig-estricto` (REQ-2).** La rama está en `3f911cd`, en pausa. Decidido el 2026-10-09: los comentarios pueden cambiar de lugar al insertar (límite aceptado), `noCheck` queda en `false`, y `src/env.ts` usa los valores por defecto si no existe `process`.
+1. **Cerrar `tsconfig-estricto` (REQ-2).** Decidido el 2026-10-09: los comentarios pueden cambiar de lugar al insertar y la línea vecina puede reformatearse (límite aceptado); un valor del template que difiere se reemplaza entero, comentarios incluidos, salvo el append de arrays; nada más se reemplaza. `noCheck` queda en `false` y `src/env.ts` sigue Node-only, con declaración local de `process` para `types: []`.
 
    Después: revisión, challenger, VERIFY con `/e2e-pm-matrix`, archivo del contexto, docs de
    la feature (REQ-n y tabla de tests) y PR.
@@ -50,7 +50,9 @@ ejercite.
    - el pre-commit no corre `dead-code` y nada fuerza `quality`;
    - el `engines` del template pisa el del usuario, y el backup solo se hace con `--backup`;
    - el formato de lo que se combina, según la decisión del concern;
-   - el CI no ejercita dependency-cruiser, madge ni audit.
+   - el CI no ejercita dependency-cruiser, madge ni audit;
+   - nada comprueba el TypeScript mínimo del template: `lib: ["ES2024"]` requiere 5.7;
+     `noCheck` y `strictBuiltinIteratorReturn`, 5.6.
 5. **Escapes del tipado (REQ-3):** un `as` simple pasa y los tests relajan `no-explicit-any`;
    sumar al CI un proyecto que tiene que fallar.
 6. **Código propio (REQ-13):** el CI corre `quality` sobre strong-mode; las regex de configs

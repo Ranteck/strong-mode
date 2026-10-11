@@ -24,6 +24,8 @@ encontrar.
 - Quien aplica strong-mode a un proyecto TypeScript existente que ya tiene `tsconfig.json`.
 - El merge estructural de `tsconfig.json` y `tsconfig.eslint.json`, y el `tsconfig.json` del
   template, que se aplica también a los proyectos nuevos.
+- El `src/env.ts` del template: tiene que compilar con el `types` del proyecto
+  (`tsc --init` escribe `"types": []`), sin sumar globals de Node a los otros archivos.
 
 ## Restricciones
 
@@ -41,6 +43,8 @@ encontrar.
   `references` (paso 3 del plan raíz).
 - Las opciones fuera de la categoría _Type Checking_ (`skipLibCheck`,
   `verbatimModuleSyntax`, `isolatedModules`): si el proyecto las fija, conserva su valor. La excepción es `noCheck`, que apaga el chequeo entero: queda en `false`.
+- Que el `src/env.ts` del template corra sin `process` (un bundle de navegador): es para
+  Node, como en `main`. El intent raíz deja fuera ser librería de runtime.
 
 ## Preguntas abiertas
 
@@ -51,4 +55,12 @@ encontrar.
 
 <!-- AAAA-MM-DD: qué cambió y por qué (aprobado por el usuario) -->
 
-- 2026-10-09: `noCheck` también toma el valor del template (`false`), porque apaga el chequeo de tipos entero; y se acepta un límite: un comentario en la misma línea que la última entrada de un objeto o array puede quedar después de lo insertado, y la línea vecina puede reindentarse. Los comentarios nunca se borran, salvo dentro de un array que se reemplaza entero. Aprobado por el usuario.
+- 2026-10-09: tres decisiones, aprobadas por el usuario.
+  - `noCheck` también toma el valor del template (`false`), porque apaga el chequeo de tipos
+    entero.
+  - Los comentarios siguen la propiedad: un valor del template que difiere se reemplaza
+    entero, con sus comentarios, salvo cuando a un array solo se le agrega al final; nada más
+    se reemplaza. Límite aceptado: un comentario en la misma línea que la última entrada
+    puede quedar después de lo insertado, y la línea vecina puede reindentarse.
+  - El `src/env.ts` del template compila con el `types` del proyecto y sigue siendo para
+    Node.
