@@ -79,7 +79,7 @@ cubren.
   quiere en una. Ya pasa en `main` con `JSON.stringify` (concern de formato del spec raíz).
 - **CF3.** Un `tsconfig.eslint.json` propio con opciones laxas, y los tsconfig
   _solution-style_ (Vite: `files: []` con `references`), donde el rigor del raíz no llega a
-  `tsconfig.app.json` (paso 3 del plan raíz).
+  `tsconfig.app.json` (paso "Frameworks, runners y gestores" del plan raíz).
 - **CF4.** El build ESM de `jsonc-parser` usa imports sin extensión y Node no lo carga.
   Node usa la entrada CommonJS (`main`), y un import con nombre funcionó en la prueba. Hay
   que verificarlo con el build de tsup y el dry-run.

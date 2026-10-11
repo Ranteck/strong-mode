@@ -20,7 +20,7 @@ T1–T8 de [spec.md](spec.md).
 
 ## Tests a escribir
 
-Todos existen, salvo T7, que se comprueba en la verificación final.
+Todos existen. T7 no tiene test automático: se comprobó a mano el 2026-10-10.
 
 | Requisito | Test o verificación                                                                                                                          |
 | --------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -45,14 +45,10 @@ Todos existen, salvo T7, que se comprueba en la verificación final.
 3. **Avisos (T6).** Hecho. `execute.ts` avisa las opciones subidas, con "would raise" en
    `--dry-run`, y avisa cuando un tsconfig queda con marcadores de conflicto.
 4. **Docs.** Hecho: README, `CLAUDE.md` y la cadena del SDLC, raíz y de la feature.
-5. **Cierre.** Falta:
-   - el challenger final;
-   - la verificación de T7 y `/e2e-pm-matrix`;
-   - archivar el contexto del ciclo;
-   - en el plan raíz, pasar REQ-2 a "cubre" y borrar el paso 1;
-   - `/pre-push` y el PR.
-
-   Push, PR y merge necesitan, cada uno, la confirmación del usuario.
+5. **Cierre.** Hecho el 2026-10-10: el challenger final no encontró nada válido, T7 y
+   `/e2e-pm-matrix` se verificaron, el contexto del ciclo se archivó y el plan raíz pasó
+   REQ-2 a "cubre". Falta `/pre-push` y el PR. Push, PR y merge necesitan, cada uno, la
+   confirmación del usuario.
 
 ## Riesgos
 
@@ -69,7 +65,11 @@ Todos existen, salvo T7, que se comprueba en la verificación final.
 - `npm run check`, `npm run format:check` y `npm run dead-code`. Verificado el 2026-10-10,
   con 298 tests.
 - `npm run build -w strong-mode && node packages/strong-mode/dist/cli.js --dry-run --yes`.
-- T7: un apply real sobre `npm init` más `tsc --init` con `strict: false`. Tiene que salir
-  el aviso `strict (false → true)`, quedar los comentarios, no haber marcadores de conflicto
-  y pasar typecheck, lint y test.
-- `/e2e-pm-matrix`, porque cambian `src/apply` y el template.
+- T7: un apply real sobre `npm init` más `tsc --init` con `strict: false`. Verificado el
+  2026-10-10: salió el aviso `strict (false → true)`, quedaron los 20 comentarios, no hubo
+  marcadores de conflicto y pasaron typecheck, lint, test y cobertura.
+- `/e2e-pm-matrix`, porque cambian `src/apply` y el template. Resultado del 2026-10-10:
+  - npm 10, npm 11 y pnpm pasan;
+  - Yarn 1 y bun fallan en el lint con tipos, un límite conocido del README;
+  - con un `tsconfig.json` comentado, el `check` del proyecto solo falla en `format:check`
+    del archivo combinado, que es el concern de formato del spec raíz.

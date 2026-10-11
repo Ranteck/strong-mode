@@ -171,3 +171,17 @@ Out of scope: running Prettier on merged files (the root spec's formatting conce
 - **Decision notes**:
   - Process deviation, disclosed to the owner: after this round the cycle goes straight to the exit challenger as pass 7 instead of a resumed review first. The cap stays at 7 by the owner's commitment, and the exit challenger reads the whole final artifact cold.
   - Review budget used: 9 of 13; CRITIQUE passes: 6 of 7.
+
+##### CRITIQUE-r07-noop
+
+- **Actors/backend**: orchestrator Claude (exit challenger dispatch, VERIFY, closure docs, commit); reviewer Codex as a fresh read-only exit challenger fed through `--prompt-file`, without the prior finding ledger; backend codex
+- **CRITIQUE outcome**: CRITIQUE pass 7 (exit challenger) on 31ce3e5, artifact `f314705a9eee6220a302c5c4a7d1a5a9b234a6a30f842b46a46096971b615446`: no valid findings against the contract. It challenged the ownership rule, comment preservation, array appends, the unsafe-input fallback, the warning text and the local `process` declaration (16 merge variants, 12 invalid inputs, 16 execution scenarios, a virtual TypeScript compilation for T8). Its read-only sandbox ran no Vitest tests, no build and no real apply, which VERIFY covers.
+- **DEBATE classifications**: no valid findings; the exit gate is satisfied on 31ce3e5.
+- **Resulting writer work**: none
+- **Checkpoint**: none
+- **Decision notes**:
+  - VERIFY on 31ce3e5, run by Claude on 2026-10-10: `npm run check` (298 tests), build, the `--dry-run --yes` smoke run and `npm run dead-code` exit 0, and the template copy is in sync.
+  - Real apply (spec T7) on an `npm init` plus `tsc --init` project with `"strict": false`: the warning `tsconfig.json: raised strict (false → true)` came out, the 20 comment lines stayed identical, there were no conflict markers, `"types": []` was kept, and the project's typecheck, lint, test and coverage exit 0. `npm init -y` now writes `"type": "commonjs"`, which strong-mode rejected before writing, as designed; the project was switched to ESM first.
+  - `/e2e-pm-matrix`: npm 10, npm 11 and pnpm pass `scaffold` and `lockstep-tag`. Yarn 1 and bun fail on the type-aware lint crash that the README lists as a known limitation (a nested TypeScript 7 under `eslint-plugin-sonarjs`); `tsc --noEmit` passed before the crash. An extra fixture with a commented `tsc --init` tsconfig passes apply, typecheck, lint and test on npm and pnpm, and its `check` fails only on `format:check` of the merged file, the root spec's formatting concern, out of scope here.
+  - Closure docs by Claude, as contract item 10 foresaw: the root plan marks REQ-2 as `cubre`, drops step 1 and renumbers the rest; the feature intent and spec now name that step instead of its number; the feature plan records the verification results.
+  - Review budget used: 10 of 13; CRITIQUE passes: 7 of 7.

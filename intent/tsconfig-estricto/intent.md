@@ -40,7 +40,7 @@ encontrar.
 
 - Que los archivos mergeados pasen `prettier --check` (concern de formato del spec raíz, arreglo aparte).
 - Un `tsconfig.eslint.json` propio con opciones laxas, y los tsconfig _solution-style_ con
-  `references` (paso 3 del plan raíz).
+  `references` (paso "Frameworks, runners y gestores" del plan raíz).
 - Las opciones fuera de la categoría _Type Checking_ (`skipLibCheck`,
   `verbatimModuleSyntax`, `isolatedModules`): si el proyecto las fija, conserva su valor. La excepción es `noCheck`, que apaga el chequeo entero: queda en `false`.
 - Que el `src/env.ts` del template corra sin `process` (un bundle de navegador): es para
